@@ -1,0 +1,1 @@
+"""Simple scikit-learn baseline model for comparison."""

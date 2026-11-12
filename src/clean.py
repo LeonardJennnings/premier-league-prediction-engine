@@ -1,0 +1,1 @@
+"""Clean and tidy the raw match tables."""
