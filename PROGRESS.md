@@ -29,3 +29,13 @@
 **Still shaky:** Remembering the exact order of add → commit → push.
 
 **Next:** Phase 3 — virtual environments and packages.
+
+## 2026-11-13 — Phase 3, virtual environments and packages
+
+**Learned:** A venv is a private toolbox for this project. Activation makes the terminal use that toolbox. `requirements.txt` is the shopping list you commit; `.venv` stays local and is gitignored. `python -m pip` installs into the active environment.
+
+**Works now:** `.venv` on Python 3.13.7; packages installed; `requirements.txt` frozen; README Setup section; deactivate breaks `import pandas`, activate fixes it.
+
+**Still shaky:** Markdown code fences vs normal text.
+
+**Next:** Phase 4 — getting the data.
