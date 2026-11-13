@@ -1558,3 +1558,23 @@ Not committed: `.venv/`, `.env`, `data/raw/`, `data/processed/`, `__pycache__/`,
 You do not need to finish a phase in one sitting. A sustainable pattern is two or three short sessions a week: reopen Cursor, read `PROGRESS.md`, tell the tutor where you are, finish one step, update the log, commit. If a phase’s concepts feel shaky, stay there. The later phases only work if the earlier mental models (folders, imports, venv, Git, clean data, no leakage) are solid.
 
 When the syllabus is done, you will have more than a football model. You will have a project you can explain file by file, a measured eval, a dashboard, a Dockerised run path, and a case study written the way implementation work is shown to other people.
+
+---
+
+## Future scope (not part of Phases 0–12)
+
+This section is a **north star**, not homework for the current syllabus. Phases 0–12 stay the path to a working engine, honest evaluation, Streamlit demo, and case study. Everything below is optional follow-on work over months or years.
+
+### Ambition
+
+Learn the craft behind quantitative sports modelling (same family of thinking as Bill Benter’s horse-racing work): many input variables → estimated probabilities → compare to reality and to market odds → improve only when the numbers justify it. Football is noisier than a marketing pitch; “incredible confidence” is not the goal. Calibrated probabilities and measured edge (or honesty about no edge) are.
+
+### Possible later epics
+
+1. **Epic: Model v2+** — richer features, better backtests, calibration, optional Dixon–Coles / ratings / ML variants; predict upcoming fixtures; never skip evaluation.
+2. **Epic: Web product** — API around the engine, custom frontend (beyond Streamlit), persistence, deploy; the syllabus Streamlit app remains the first browser demo.
+3. **Epic: Research loop** — log predictions vs results over seasons; study where the model is wrong; resist overfitting and hype.
+
+### Rule
+
+Do not pull future-scope work into Phases 0–12. Finish the teaching path first so the engine and evals exist. Then open epics deliberately.
