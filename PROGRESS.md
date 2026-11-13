@@ -19,3 +19,13 @@
 **Still shaky:** Exact wording of module vs package; import path vs file path.
 
 **Next:** Phase 2 — Git and GitHub fundamentals.
+
+## 2026-11-13 — Phase 2, Git and GitHub
+
+**Learned:** `git add` stages; `git commit` saves locally; `git push` sends to GitHub. A branch is an alternate timeline. A PR asks to merge one branch into another. `origin` is the nickname for the GitHub remote. `git restore` undoes uncommitted changes.
+
+**Works now:** Git name/email on this Mac; README commits; practice branch; pull request #1 merged; `git pull` on main; Python 3.13.7.
+
+**Still shaky:** Remembering the exact order of add → commit → push.
+
+**Next:** Phase 3 — virtual environments and packages.
