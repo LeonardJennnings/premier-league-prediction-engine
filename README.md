@@ -30,9 +30,6 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt 
 ```
 
-
-
-
 ## Data
 
 Match results and odds are from [football-data.co.uk](https://www.football-data.co.uk/).

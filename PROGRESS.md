@@ -49,3 +49,13 @@
 **Still shaky:** (optional — one fuzzy thing, or leave as none)
 
 **Next:** Phase 5 — cleaning with pandas.
+
+## 2026-11-14 — Phase 5, cleaning and features
+
+**Learned:** DataFrame = table in code. Clean schema is a contract. `utf-8-sig` handles BOM. Pipeline imports clean/features; it doesn't own that logic. Implied odds = 1/odds then normalise to remove bookmaker margin.
+
+**Works now:** `clean.py` builds matches; `features.py` adds match_id + implied probs; `python -m src.pipeline` rebuilds `data/processed/matches.csv` (1620 x 14).
+
+**Still shaky:** (optional)
+
+**Next:** Phase 6 — tests with pytest.
