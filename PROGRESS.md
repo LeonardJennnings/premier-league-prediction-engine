@@ -59,3 +59,11 @@
 **Still shaky:** (optional)
 
 **Next:** Phase 6 — tests with pytest.
+
+## 2026-11-14 — Phase 6, pytest
+
+**Learned:** A test arranges input, calls your code, asserts the result. `ModuleNotFoundError: src` means project root isn't on the path — `pytest.ini` with `pythonpath = .` fixes it. Reading a failed assert (expected vs actual) is the skill.
+
+**Works now:** 5 pytest tests for clean + implied odds; README Tests section; intentional fail then restore.
+
+**Next:** Phase 7 — the prediction model.

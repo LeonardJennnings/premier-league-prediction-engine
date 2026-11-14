@@ -35,3 +35,11 @@ python -m pip install -r requirements.txt
 Match results and odds are from [football-data.co.uk](https://www.football-data.co.uk/).
 Column meanings: [notes.txt](https://www.football-data.co.uk/notes.txt).
 Raw CSVs are downloaded into `data/raw/` and are not committed to Git.
+
+## Tests
+
+With the venv active, from the project root:
+
+```bash
+pytest
+```
