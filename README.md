@@ -18,7 +18,7 @@ python3 -m venv .venv
 source .venv/bin/activate 
 ```
 
-3. Activate it (Windows PowerShell)
+3. Activate it (Windows PowerShell):
 
 ```bash
 .venv\Scripts\Activate.ps1 
@@ -32,3 +32,9 @@ python -m pip install -r requirements.txt
 
 
 
+
+## Data
+
+Match results and odds are from [football-data.co.uk](https://www.football-data.co.uk/).
+Column meanings: [notes.txt](https://www.football-data.co.uk/notes.txt).
+Raw CSVs are downloaded into `data/raw/` and are not committed to Git.

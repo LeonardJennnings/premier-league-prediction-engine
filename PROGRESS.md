@@ -39,3 +39,13 @@
 **Still shaky:** Markdown code fences vs normal text.
 
 **Next:** Phase 4 — getting the data.
+
+## 2026-11-14 — Phase 4, getting the data
+
+**Learned:** Config owns URL and path rules; download fetches and saves. Raw stays in `data/raw/` and is gitignored. Rerunning skips existing files unless forced. Credit the data source.
+
+**Works now:** `season_url` / `raw_path` in config; `python -m src.download` pulls seasons 2223–2627; second run skips; README Data section.
+
+**Still shaky:** (optional — one fuzzy thing, or leave as none)
+
+**Next:** Phase 5 — cleaning with pandas.
