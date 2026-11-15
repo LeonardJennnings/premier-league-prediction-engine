@@ -101,3 +101,11 @@
 **Works now:** `src/logging_setup.py`; download/pipeline/evaluate use loggers; `.env.example` committed; `.env` ignored.
 
 **Next:** Phase 11 — Docker.
+
+## 2026-11-15 — Phase 11, Docker
+
+**Learned:** Image = snapshot/recipe; container = that image running. Docker packages app + environment so it is not trapped on one laptop. Copy `requirements.txt` first for layer caching. Streamlit must bind `0.0.0.0` so the host browser can reach it. Do not bake `.env` into the image. Prefer mounting local `data/` / `results/` rather than shipping raw CSVs.
+
+**Works now:** `Dockerfile` + `.dockerignore`; image builds as `pl-engine`; app runs in a container on port 8501; README documents build/run and volume mounts. Docker Desktop installed (Intel Mac).
+
+**Next:** Phase 12 — README polish, demo, case study, optional deploy.
