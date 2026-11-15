@@ -77,3 +77,11 @@
 **Still shaky:** Fair train/test split over time (comes in Phase 8).
 
 **Next:** Phase 8 — evaluation / backtesting.
+
+## 2026-11-15 — Phase 8, evaluation
+
+**Learned:** Fixed test set beats cherry-picking. Log loss/Brier judge probability quality; accuracy is secondary. Bookmakers are a tough baseline. Modest Poisson improvement over naive is honest; matching the market is success, crushing it is suspicious.
+
+**Works now:** metrics + tests; `python -m src.evaluate` backtest on 2526; `results/eval_results.csv` + EVAL_README.
+
+**Next:** Phase 9 — Streamlit dashboard.
