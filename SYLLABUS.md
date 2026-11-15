@@ -1571,9 +1571,26 @@ Learn the craft behind quantitative sports modelling (same family of thinking as
 
 ### Possible later epics
 
-1. **Epic: Model v2+** — richer features, better backtests, calibration, optional Dixon–Coles / ratings / ML variants; predict upcoming fixtures; never skip evaluation.
+1. **Epic: Model v2+** — richer features, better backtests, calibration, optional Dixon–Coles / ratings / ML variants; predict upcoming fixtures; never skip evaluation. Includes revisiting **market data** (see below).
 2. **Epic: Web product** — API around the engine, custom frontend (beyond Streamlit), persistence, deploy; the syllabus Streamlit app remains the first browser demo.
 3. **Epic: Research loop** — log predictions vs results over seasons; study where the model is wrong; resist overfitting and hype.
+
+### Design decision to revisit: one bookmaker vs many
+
+**What v1 does:** cleaning keeps a single closing line (Bet365 `B365CH` / `B365CD` / `B365CA` → `home_odds_close` / `draw_odds_close` / `away_odds_close`). Implied probabilities and the sklearn baseline are built from that one source.
+
+**Why that was the right call for v1:**
+- Simpler schema and fewer missing columns across seasons
+- Closing odds are a clear “market at kickoff” snapshot
+- Enough to compare model vs market in evaluation without drowning in provider noise
+- Easy to explain end-to-end in a portfolio or interview
+
+**What “more providers” could buy later (Model v2+ / Research loop):**
+- Consensus / averaged odds across books (less dependence on one book’s quirks)
+- Cross-checks when a column is missing or looks wrong
+- Optional sharp-vs-soft or best-price angles (more betting/trading flavoured; keep eval honest)
+
+**Tradeoff to defend in interviews:** more bookmakers ≠ automatically better. Extra columns mean more missing data, more cleaning, and more ways to leak or overfit. Prefer **better-chosen market data** over **more market data** until backtests show the single-book choice is a bottleneck. If asked “why only Bet365?”, answer: deliberate v1 scope — one trusted closing line, measurable against results; multi-book consensus is a documented follow-on epic, not an accident.
 
 ### Rule
 
