@@ -1,8 +1,21 @@
 # Premier League Prediction Engine
 
-A learning project that downloads Premier League results, cleans them, and builds a simple match prediction pipeline with a Streamlit dashboard.
+A learning project that downloads Premier League results, cleans them, builds Poisson and baseline match-outcome models, evaluates them on a fixed test set, and shows forecasts in a Streamlit dashboard.
 
-Run the pipeline later with: `python3 -m src.pipeline`
+This is a **forecast / engineering demo**, not betting advice.
+
+## Project layout
+
+```text
+app/           Streamlit dashboard
+src/           Library code (download, clean, features, models, evaluate, pipeline)
+tests/         pytest suite
+data/raw/      Downloaded CSVs (gitignored)
+data/processed/  Cleaned matches (gitignored)
+results/       Eval tables (committed)
+docs/          Case study notes (later)
+SYLLABUS.md    Teaching syllabus + future-scope epics
+```
 
 ## Setup
 
@@ -12,34 +25,56 @@ Run the pipeline later with: `python3 -m src.pipeline`
 python3 -m venv .venv
 ```
 
-2. Activate it (macOS/Linux):
+2. Activate it:
 
 ```bash
-source .venv/bin/activate 
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 ```
 
-3. Activate it (Windows PowerShell):
+3. Install dependencies:
 
 ```bash
-.venv\Scripts\Activate.ps1 
+python -m pip install -r requirements.txt
 ```
 
-4. Install dependencies:
+## Pipeline
+
+From the project root, with the venv active:
 
 ```bash
-python -m pip install -r requirements.txt 
+python -m src.pipeline
+```
+
+This downloads (or skips) raw CSVs, builds `data/processed/matches.csv`, fits the models, and prints a sample comparison.
+
+## Evaluation
+
+```bash
+python -m src.evaluate
+```
+
+Writes `results/eval_results.csv`. See `results/EVAL_README.md` for the test-set rule and metric definitions.
+
+## Dashboard
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+Run from the **project root**. Open the local URL Streamlit prints (usually http://localhost:8501).
+
+## Tests
+
+```bash
+pytest
 ```
 
 ## Data
 
 Match results and odds are from [football-data.co.uk](https://www.football-data.co.uk/).
 Column meanings: [notes.txt](https://www.football-data.co.uk/notes.txt).
-Raw CSVs are downloaded into `data/raw/` and are not committed to Git.
-
-## Tests
-
-With the venv active, from the project root:
-
-```bash
-pytest
-```
+Raw CSVs live in `data/raw/` and are not committed to Git.

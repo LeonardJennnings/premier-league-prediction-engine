@@ -21,3 +21,7 @@ models/*.joblib
 Thumbs.db
 .idea/
 .vscode/
+
+# Streamlit agent skills (local symlinks; not part of this project)
+.agents/
+.claude/

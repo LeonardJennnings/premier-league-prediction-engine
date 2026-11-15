@@ -85,3 +85,11 @@
 **Works now:** metrics + tests; `python -m src.evaluate` backtest on 2526; `results/eval_results.csv` + EVAL_README.
 
 **Next:** Phase 9 — Streamlit dashboard.
+
+## 2026-11-15 — Phase 9, Streamlit dashboard
+
+**Learned:** Streamlit turns a Python script into a simple browser app and reruns on widget changes. Cache data vs model objects separately. App imports src/; run from project root. Language should say probabilities/forecasts, not tips.
+
+**Works now:** Dashboard with season/match pickers, Poisson vs baseline vs bookmaker probs, eval table + log-loss chart; graceful message if processed data missing; README layout + run instructions; removed Streamlit skills bloat and duplicate syllabus file.
+
+**Next:** Phase 10 — logging, config, and secrets.
