@@ -67,3 +67,13 @@
 **Works now:** 5 pytest tests for clean + implied odds; README Tests section; intentional fail then restore.
 
 **Next:** Phase 7 — the prediction model.
+
+## 2026-11-15 — Phase 7, prediction models
+
+**Learned:** Poisson turns attack/defence/home advantage into expected goals, then a scoreline grid, then H/D/A probs. Baseline logistic regression on implied odds tracks the market. Leakage = training on info you wouldn't have before kickoff. Extreme probs (e.g. 99%) are suspicious. One match isn't an eval.
+
+**Works now:** `fit_poisson` / `predict_match`; `fit_baseline` / `predict_match_features`; poisson tests; pipeline fits both and prints market vs poisson vs baseline for a sample match.
+
+**Still shaky:** Fair train/test split over time (comes in Phase 8).
+
+**Next:** Phase 8 — evaluation / backtesting.
