@@ -75,6 +75,25 @@ streamlit run app/streamlit_app.py
 
 Run from the **project root**. Open the local URL Streamlit prints (usually http://localhost:8501).
 
+## Docker
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/). Build once from the project root:
+
+```bash
+docker build -t pl-engine .
+```
+
+**Data:** the image does not include `data/raw/` (and should not redistribute those files). Run the local pipeline first so `data/processed/matches.csv` exists, then **mount** your laptop’s `data/` (and optionally `results/`) into the container:
+
+```bash
+docker run --rm -p 8501:8501 \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/results:/app/results" \
+  pl-engine
+```
+
+Open http://localhost:8501. `-p 8501:8501` publishes the Streamlit port; `-v` means the container reads/writes your local folders instead of baking stale data into the image. Stop with Ctrl+C.
+
 ## Tests
 
 ```bash
