@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-import math
+import logging
 
 import numpy as np
 
@@ -156,7 +156,12 @@ def save_results(df: pd.DataFrame, path: Path | None = None) -> Path:
 
 
 if __name__ == "__main__":
+    from src.config import LOG_LEVEL
+    from src.logging_setup import setup_logging
+
+    setup_logging(LOG_LEVEL)
+    logger = logging.getLogger(__name__)
     table = run_backtest()
     out = save_results(table)
-    print(table.to_string(index=False))
-    print(f"Saved {out}")    
+    logger.info("\n%s", table.to_string(index=False))
+    logger.info("Saved %s", out)    

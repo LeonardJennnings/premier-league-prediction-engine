@@ -1,10 +1,15 @@
 """Download Premier League CSVs from football-data.co.uk."""
 
+from __future__ import annotations
+
+import logging
 from pathlib import Path
 
 import requests
 
 from src.config import DATA_RAW, SEASON_CODES, raw_path, season_url
+
+logger = logging.getLogger(__name__)
 
 
 def download_season(season_code: str, force: bool = False) -> Path:
@@ -15,15 +20,21 @@ def download_season(season_code: str, force: bool = False) -> Path:
     DATA_RAW.mkdir(parents=True, exist_ok=True)
 
     if dest.exists() and not force:
-        print(f"Skipping {season_code}: already have {dest.name}")
+        logger.info("Skipping %s: already have %s", season_code, dest.name)
         return dest
 
-    print(f"Downloading {season_code} from {url}")
-    response = requests.get(url, timeout=60)
-    response.raise_for_status()
+    logger.info("Downloading %s from %s", season_code, url)
+    try:
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+    except requests.RequestException:
+        logger.exception("Failed to download season %s from %s", season_code, url)
+        raise
+
     dest.write_bytes(response.content)
-    print(f"Saved {dest}")
+    logger.info("Saved %s (%s bytes)", dest, dest.stat().st_size)
     return dest
+
 
 def download_all(season_codes=None, force: bool = False) -> list[Path]:
     """Download every configured season (or a custom list)."""
@@ -36,4 +47,7 @@ def download_all(season_codes=None, force: bool = False) -> list[Path]:
 
 
 if __name__ == "__main__":
+    from src.logging_setup import setup_logging
+
+    setup_logging()
     download_all()

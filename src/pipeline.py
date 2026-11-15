@@ -1,10 +1,18 @@
 """Run the project steps in order."""
 
+from __future__ import annotations
+
+import logging
+
 from src.clean import build_matches_table, save_matches
+from src.config import LOG_LEVEL
 from src.download import download_all
 from src.features import add_features
+from src.logging_setup import setup_logging
 from src.models.baseline import fit_baseline, predict_match_features
 from src.models.poisson import fit_poisson, predict_match
+
+logger = logging.getLogger(__name__)
 
 
 def _fmt(probs: dict[str, float]) -> str:
@@ -16,19 +24,20 @@ def _fmt(probs: dict[str, float]) -> str:
 
 
 def main() -> None:
-    print("Downloading raw CSVs (skips files you already have)...")
+    setup_logging(LOG_LEVEL)
+    logger.info("Downloading raw CSVs (skips files you already have)...")
     download_all()
 
-    print("Building cleaned matches table...")
+    logger.info("Building cleaned matches table...")
     matches = build_matches_table()
 
-    print("Adding features...")
+    logger.info("Adding features...")
     matches = add_features(matches)
 
     path = save_matches(matches)
-    print(f"Saved {len(matches)} matches to {path}")
+    logger.info("Saved %s matches to %s", len(matches), path)
 
-    print("Fitting Poisson and baseline models...")
+    logger.info("Fitting Poisson and baseline models...")
     poisson = fit_poisson(matches)
     baseline = fit_baseline(matches)
 
@@ -45,14 +54,16 @@ def main() -> None:
         "away": float(sample["implied_away"]),
     }
 
-    print(
-        f"Sample: {sample['date']}  "
-        f"{sample['home_team']} vs {sample['away_team']}  "
-        f"(result={sample['result']})"
+    logger.info(
+        "Sample: %s  %s vs %s  (result=%s)",
+        sample["date"],
+        sample["home_team"],
+        sample["away_team"],
+        sample["result"],
     )
-    print("  market  ", _fmt(p_mkt))
-    print("  poisson ", _fmt(p_pois))
-    print("  baseline", _fmt(p_base))
+    logger.info("  market   %s", _fmt(p_mkt))
+    logger.info("  poisson  %s", _fmt(p_pois))
+    logger.info("  baseline %s", _fmt(p_base))
 
 
 if __name__ == "__main__":

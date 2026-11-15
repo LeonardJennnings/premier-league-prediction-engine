@@ -93,3 +93,11 @@
 **Works now:** Dashboard with season/match pickers, Poisson vs baseline vs bookmaker probs, eval table + log-loss chart; graceful message if processed data missing; README layout + run instructions; removed Streamlit skills bloat and duplicate syllabus file.
 
 **Next:** Phase 10 — logging, config, and secrets.
+
+## 2026-11-15 — Phase 10, logging and secrets
+
+**Learned:** logging > print for levels/timestamps. Secrets live in gitignored `.env`; `.env.example` documents names only. Config loads dotenv and exposes LOG_LEVEL / optional API token.
+
+**Works now:** `src/logging_setup.py`; download/pipeline/evaluate use loggers; `.env.example` committed; `.env` ignored.
+
+**Next:** Phase 11 — Docker.

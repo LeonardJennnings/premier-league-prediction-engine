@@ -41,6 +41,14 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
+4. (Optional) copy env template and edit locally — never commit `.env`:
+
+```bash
+cp .env.example .env
+```
+
+`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is for a later fixtures API and can stay empty.
+
 ## Pipeline
 
 From the project root, with the venv active:
