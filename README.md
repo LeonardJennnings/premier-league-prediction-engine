@@ -1,8 +1,53 @@
 # Premier League Prediction Engine
 
-A learning project that downloads Premier League results, cleans them, builds Poisson and baseline match-outcome models, evaluates them on a fixed test set, and shows forecasts in a Streamlit dashboard.
+Historical Premier League results and bookmaker odds are messy to turn into a fair, repeatable forecast demo. This project downloads those CSVs, cleans them, fits simple match-outcome models, evaluates them on a fixed test set against the market, and shows the results in Streamlit.
 
-This is a **forecast / engineering demo**, not betting advice.
+This is a **forecast / engineering demo**, not a betting tipster or gambling product.
+
+![Dashboard screenshot](docs/dashboard.png)
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph config [config.py]
+        Settings["Paths, season codes, URLs"]
+    end
+
+    subgraph ingest [Ingest]
+        Download["download.py"]
+        Clean["clean.py"]
+        Features["features.py"]
+    end
+
+    subgraph model [Models]
+        Poisson["models/poisson.py"]
+        Baseline["models/baseline.py"]
+    end
+
+    subgraph out [Outputs]
+        Evaluate["evaluate.py"]
+        Results["results/ tables"]
+        App["app/streamlit_app.py"]
+    end
+
+    Pipeline["pipeline.py"] --> Download
+    Settings --> Download
+    Settings --> Clean
+    Settings --> Evaluate
+    Download --> Clean
+    Clean --> Features
+    Features --> Poisson
+    Features --> Baseline
+    Poisson --> Evaluate
+    Baseline --> Evaluate
+    Evaluate --> Results
+    Features --> App
+    Poisson --> App
+    Baseline --> App
+```
+
+More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SCOPE.md)
 
 ## Project layout
 
@@ -13,15 +58,17 @@ tests/         pytest suite
 data/raw/      Downloaded CSVs (gitignored)
 data/processed/  Cleaned matches (gitignored)
 results/       Eval tables (committed)
-docs/          Case study notes (later)
+docs/          Scope, case study, dashboard screenshot
 SYLLABUS.md    Teaching syllabus + future-scope epics
 ```
 
-## Setup
+## Setup (macOS / Linux / Windows)
 
-1. Create the virtual environment:
+1. Clone the repo and create a virtual environment:
 
 ```bash
+git clone https://github.com/LeonardJennnings/premier-league-prediction-engine.git
+cd premier-league-prediction-engine
 python3 -m venv .venv
 ```
 
@@ -41,7 +88,7 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-4. (Optional) copy env template and edit locally — never commit `.env`:
+4. (Optional) copy the env template — never commit `.env`:
 
 ```bash
 cp .env.example .env
@@ -66,6 +113,19 @@ python -m src.evaluate
 ```
 
 Writes `results/eval_results.csv`. See `results/EVAL_README.md` for the test-set rule and metric definitions.
+
+## Results
+
+Fixed backtest: train on seasons `2223`–`2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss / Brier is better.
+
+| Model | Log loss | Brier | Accuracy |
+|-------|----------|-------|----------|
+| Naive frequencies | 1.085 | 0.219 | 42.6% |
+| Poisson | 1.041 | 0.209 | 45.0% |
+| Sklearn baseline | 1.016 | 0.204 | 49.5% |
+| Bookmaker implied | 1.013 | 0.203 | 49.7% |
+
+**Reading:** both models beat a naive “always use historical H/D/A rates” baseline. The sklearn baseline lands very close to the bookmaker row; the Poisson goals model improves on naive but sits a little behind the market. That is an honest engineering result — matching closing odds is hard, and a dramatic unexplained win would be more suspicious than useful. Full numbers live in `results/eval_results.csv`.
 
 ## Dashboard
 
@@ -100,8 +160,22 @@ Open http://localhost:8501. `-p 8501:8501` publishes the Streamlit port; `-v` me
 pytest
 ```
 
+## Demo
+
+Record a ~2 minute screen walkthrough (README → app → one match → eval table) and host it unlisted on Loom or YouTube. Add the link here when you have it:
+
+**Demo video:** _add Loom/YouTube URL_
+
+## Optional deploy
+
+[Streamlit Community Cloud](https://streamlit.io/cloud) can host `app/streamlit_app.py` from this GitHub repo. Put secrets in the Cloud secrets UI, not in Git. The deployed app still needs processed data available somehow (committed sample, build step, or documented download) — see the case study if you extend this.
+
 ## Data
 
 Match results and odds are from [football-data.co.uk](https://www.football-data.co.uk/).
 Column meanings: [notes.txt](https://www.football-data.co.uk/notes.txt).
-Raw CSVs live in `data/raw/` and are not committed to Git.
+Raw CSVs live in `data/raw/` and are not committed to Git. This project does **not** claim a licence over that source data.
+
+## Licence
+
+Project code is under the [MIT License](LICENSE). football-data.co.uk data remains subject to that site’s terms; do not treat the CSVs as yours to redistribute.

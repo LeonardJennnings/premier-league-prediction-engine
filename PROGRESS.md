@@ -109,3 +109,11 @@
 **Works now:** `Dockerfile` + `.dockerignore`; image builds as `pl-engine`; app runs in a container on port 8501; README documents build/run and volume mounts. Docker Desktop installed (Intel Mac).
 
 **Next:** Phase 12 — README polish, demo, case study, optional deploy.
+
+## 2026-11-15 — Phase 12, portfolio wrap-up
+
+**Learned:** README is the front door (what / why / how / results / credit). Scope and case study are delivery habits. Honest “close to bookmakers” beats an unexplained win. Demo video stays off Git (Loom/YouTube link). Streamlit Cloud is optional; secrets stay in the host store.
+
+**Works now:** polished README (results, architecture, licence, screenshot); `docs/SCOPE.md` + `docs/CASE_STUDY.md`; MIT `LICENSE`; pytest green (9 passed). Demo link placeholder left for a personal Loom/YouTube URL. Optional Cloud deploy not required for syllabus complete.
+
+**Next:** Record the 2-minute demo and paste the URL into the README Demo section; optional Streamlit Cloud. Syllabus Phases 0–12 otherwise complete.
