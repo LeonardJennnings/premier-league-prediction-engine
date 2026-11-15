@@ -1,5 +1,7 @@
 # Premier League prediction engine: teaching syllabus
 
+**Status (15 November 2026):** Phases 0–12 complete in this repo (`v1.0`). Optional leftovers: personal demo video link in the README, Streamlit Community Cloud deploy. Further work lives under Future scope below — not syllabus homework.
+
 This file is a live teaching syllabus. You start with an empty folder on your computer and Cursor. An AI tutor in Cursor will walk you through building a full Premier League prediction engine and dashboard, one small step at a time, while teaching you how a real project is split across files, how those files talk to each other, and the everyday tools (Git, packages, virtual environments, tests, config, Docker) that Forward Deployed Engineer work depends on.
 
 **What you will build:** a Python project that downloads historical Premier League results and bookmaker odds, cleans them, trains a simple goals model (Poisson, with an optional Dixon–Coles adjustment) plus a scikit-learn baseline, evaluates both against a fixed test set and against bookmaker implied probabilities, and shows the results in a Streamlit dashboard.
