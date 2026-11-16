@@ -136,9 +136,9 @@ def fit_dixon_coles(
     ξ is fixed (config default ``DIXON_COLES_XI``), not jointly optimized.
     Attack is reparameterized so its mean is 1. Defence and attack are pulled
     toward 1 with an L2 term scaled by ``1 / (team_matches + 1)``. If the
-    optimizer raises, returns a non-finite point, or stays in the τ ≤ 0 penalty
-    region, the model falls back to the Poisson moment init with ρ = 0. A finite
-    but unsuccessful L-BFGS-B status keeps that point and logs a warning.
+    optimizer raises, returns ``success=False``, returns a non-finite point, or
+    stays in the τ ≤ 0 penalty region, the model logs a warning and falls back
+    to the Poisson moment init with ρ = 0.
 
     ``max_goals`` is accepted for callers that share the predict signature.
     The likelihood uses the observed scores, so the grid cap does not enter the fit.
@@ -222,7 +222,8 @@ def fit_dixon_coles(
         return fallback
 
     if (
-        not np.all(np.isfinite(result.x))
+        not result.success
+        or not np.all(np.isfinite(result.x))
         or not np.isfinite(result.fun)
         or float(result.fun) >= _PENALTY / 10.0
     ):
@@ -231,12 +232,6 @@ def fit_dixon_coles(
             getattr(result, "message", "non-finite result"),
         )
         return fallback
-
-    if not result.success:
-        logger.warning(
-            "Dixon–Coles optimizer reported %s; keeping the finite solution",
-            result.message,
-        )
 
     attack, defence, gamma, rho = _unpack_theta(result.x, n)
     lam = np.maximum(attack[home_ix] * defence[away_ix] * gamma, 1e-8)
