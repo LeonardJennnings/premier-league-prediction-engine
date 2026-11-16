@@ -35,17 +35,24 @@ def add_implied_odds(df: pd.DataFrame) -> pd.DataFrame:
     """Convert closing decimal odds to normalised implied probabilities."""
     out = df.copy()
     needed = ["home_odds_close", "draw_odds_close", "away_odds_close"]
-    if not all(c in out.columns for c in needed):
-        return out
+    if all(c in out.columns for c in needed):
+        raw_h = 1 / out["home_odds_close"]
+        raw_d = 1 / out["draw_odds_close"]
+        raw_a = 1 / out["away_odds_close"]
+        total = raw_h + raw_d + raw_a
 
-    raw_h = 1 / out["home_odds_close"]
-    raw_d = 1 / out["draw_odds_close"]
-    raw_a = 1 / out["away_odds_close"]
-    total = raw_h + raw_d + raw_a
+        out["implied_home"] = raw_h / total
+        out["implied_draw"] = raw_d / total
+        out["implied_away"] = raw_a / total
 
-    out["implied_home"] = raw_h / total
-    out["implied_draw"] = raw_d / total
-    out["implied_away"] = raw_a / total
+    ou_needed = ["over_25_odds_close", "under_25_odds_close"]
+    if all(c in out.columns for c in ou_needed):
+        raw_over = 1 / out["over_25_odds_close"]
+        raw_under = 1 / out["under_25_odds_close"]
+        total_ou = raw_over + raw_under
+
+        out["implied_over_25"] = raw_over / total_ou
+        out["implied_under_25"] = raw_under / total_ou
     return out
 
 

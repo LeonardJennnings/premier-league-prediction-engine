@@ -1,5 +1,11 @@
-run_date,model,n_folds,n_test,log_loss,brier,accuracy,aggregation
-2026-11-16,bookmaker_implied,142,1420,0.9622,0.1904,0.5493,pooled
-2026-11-16,naive_frequencies,142,1420,1.071,0.216,0.4408,pooled
-2026-11-16,poisson,142,1420,1.0413,0.1985,0.519,pooled
-2026-11-16,sklearn_baseline,142,1420,0.9677,0.1916,0.5458,pooled
+run_date,model,market,n_folds,n_test,log_loss,brier,accuracy,aggregation
+2026-11-16,bookmaker_implied,1x2,142,1420,0.9622,0.1904,0.5493,pooled
+2026-11-16,bookmaker_over_25,over_under_25,142,1420,0.6735,0.2404,0.5697,pooled
+2026-11-16,dixon_coles,1x2,142,1420,0.9961,0.1956,0.5282,pooled
+2026-11-16,dixon_coles_btts,btts,142,1420,0.717,0.2503,0.5627,pooled
+2026-11-16,dixon_coles_calibrated,1x2,122,1220,1.0013,0.1968,0.5205,pooled
+2026-11-16,dixon_coles_over_25,over_under_25,142,1420,0.6861,0.2456,0.5923,pooled
+2026-11-16,elo,1x2,142,1420,1.0008,0.1986,0.5268,pooled
+2026-11-16,naive_frequencies,1x2,142,1420,1.071,0.216,0.4408,pooled
+2026-11-16,poisson,1x2,142,1420,1.0413,0.1985,0.519,pooled
+2026-11-16,sklearn_baseline,1x2,142,1420,0.9677,0.1916,0.5458,pooled

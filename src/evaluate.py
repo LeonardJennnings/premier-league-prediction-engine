@@ -68,6 +68,10 @@ from src.clean import build_matches_table
 from src.config import RESULTS, SEASON_CODES
 from src.features import add_features
 from src.models.baseline import fit_baseline, predict_match_features
+from src.models.dixon_coles import fit_dixon_coles
+from src.models.dixon_coles import predict_match as predict_dixon_coles
+from src.models.elo import fit_elo
+from src.models.elo import predict_match as predict_elo
 from src.models.poisson import fit_poisson, predict_match
 
 TEST_SEASON = "2526"
@@ -95,9 +99,19 @@ def _naive_probas(train: pd.DataFrame, n: int) -> np.ndarray:
     return np.tile([p["home"], p["draw"], p["away"]], (n, 1))
 
 
-def run_backtest(test_season: str = TEST_SEASON) -> pd.DataFrame:
-    """Fit on earlier seasons, score on the fixed test season, return a results table."""
-    matches = add_features(build_matches_table())
+def run_backtest(
+    test_season: str = TEST_SEASON,
+    matches: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Fit on earlier seasons, score on the fixed test season, return a results table.
+
+    Dixon–Coles and Elo are raw 1X2 lines. Temperature calibration stays on the
+    walk-forward path so this gate does not fit a scaler on the test season.
+    """
+    if matches is None:
+        matches = add_features(build_matches_table())
+    else:
+        matches = matches.copy()
     train = matches[matches["season_code"].isin(_train_seasons(test_season))].copy()
     test = matches[matches["season_code"] == test_season].copy()
     test = test.dropna(subset=["implied_home", "implied_draw", "implied_away", "result"])
@@ -117,6 +131,20 @@ def run_backtest(test_season: str = TEST_SEASON) -> pd.DataFrame:
     ]
     poisson_P = _probas_to_matrix(poisson_rows)
 
+    dc_model = fit_dixon_coles(train)
+    dc_rows = [
+        predict_dixon_coles(dc_model, row.home_team, row.away_team)
+        for row in test.itertuples(index=False)
+    ]
+    dc_P = _probas_to_matrix(dc_rows)
+
+    elo_model = fit_elo(train)
+    elo_rows = [
+        predict_elo(elo_model, row.home_team, row.away_team)
+        for row in test.itertuples(index=False)
+    ]
+    elo_P = _probas_to_matrix(elo_rows)
+
     baseline_model = fit_baseline(train)
     baseline_rows = [predict_match_features(baseline_model, row) for _, row in test.iterrows()]
     baseline_P = _probas_to_matrix(baseline_rows)
@@ -128,6 +156,8 @@ def run_backtest(test_season: str = TEST_SEASON) -> pd.DataFrame:
     for name, P in [
         ("naive_frequencies", naive_P),
         ("poisson", poisson_P),
+        ("dixon_coles", dc_P),
+        ("elo", elo_P),
         ("sklearn_baseline", baseline_P),
         ("bookmaker_implied", bookie_P),
     ]:

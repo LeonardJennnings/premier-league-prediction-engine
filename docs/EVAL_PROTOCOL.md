@@ -55,9 +55,27 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Line | Description |
 |---|---|
 | Naive frequencies | Historical home/draw/away rates from the train window |
-| Poisson | Goals model with attack, defence, and home advantage |
+| Poisson | Independent Poisson goals model (attack, defence, home advantage) |
+| Dixon–Coles (raw) | Time-decayed Dixon–Coles 1X2 from the scoreline grid |
+| Dixon–Coles (calibrated) | Temperature-scaled 1X2; walk-forward only, after a prior-fold warm-start |
+| Elo | Rating comparator (1X2 only) |
 | Sklearn baseline | Logistic regression on pre-match features available at train time |
-| Bookmaker implied | De-vigged closing probabilities on the scored rows |
+| Bookmaker implied | De-vigged closing 1X2 |
+| Dixon–Coles O/U 2.5 | Binary line `dixon_coles_over_25` from the raw grid (`market=over_under_25`) |
+| Dixon–Coles BTTS | Binary line `dixon_coles_btts` from the raw grid (`market=btts`); model-only until a book series exists |
+| Bookmaker O/U 2.5 | Binary `bookmaker_over_25` when closing totals columns exist (`market=over_under_25`) |
+
+**Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid (and the `predict_matches` helper). There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
+
+**Over/under and BTTS scoring.** Walk-forward publishes pooled binary metrics for `dixon_coles_over_25` and `dixon_coles_btts` every fold, plus `bookmaker_over_25` when `implied_over_25` is present. Each summary / by-gameweek row carries a `market` label (`1x2`, `over_under_25`, or `btts`). Missing over/under odds drop a row from the book comparison only.
+
+**Do not rank binary markets against 1X2.** Binary O/U and BTTS log loss are two-class scores. 1X2 log loss is a three-class score. Those numbers are not comparable; filter on `market` (or the model name suffix) and never sort the full CSV as one league table.
+
+**Time decay (ξ).** Dixon–Coles match weights are \(e^{-\xi t}\) with \(t\) in days. ξ is a fixed config constant (`DIXON_COLES_XI`, about a one-year half-life). It is not jointly estimated with attack, defence, home advantage, or ρ.
+
+**Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
+
+**Offline predictions.** `src.models.predict.predict_matches` scores a fitted Dixon–Coles model on a match table. Optional temperature is applied to 1X2 only, matching the rule above.
 
 **Metrics**
 
