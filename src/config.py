@@ -20,6 +20,15 @@ SEASON_CODES = ["2223", "2324", "2425", "2526", "2627"]
 DIVISION = "E0"
 BASE_URL = "https://www.football-data.co.uk/mmz4281"
 
+# Dixon–Coles: ξ in per-day units (~1 year half-life ≈ ln(2)/365)
+DIXON_COLES_XI = 0.0019
+DIXON_COLES_MAX_GOALS = 8
+DIXON_COLES_L2 = 0.01
+CALIBRATION_MIN_ROWS = 200
+ELO_K = 20.0
+ELO_HOME_BONUS = 60.0
+ELO_INITIAL = 1500.0
+
 # Optional future API token for football-data.org fixtures (never commit real values).
 FOOTBALL_DATA_ORG_TOKEN = os.getenv("FOOTBALL_DATA_ORG_TOKEN", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
