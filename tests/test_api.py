@@ -1,15 +1,24 @@
+import ast
+import sqlite3
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api.app import create_app
-from src.store.predictions import connect, insert_prediction, settle_prediction, upsert_model_artefact
+from src.store.predictions import (
+    connect,
+    connect_readonly,
+    insert_prediction,
+    settle_prediction,
+    upsert_model_artefact,
+)
 from src.store.schema import init_db
 
 NOW = "2026-11-16T12:00:00Z"
 
 _HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+_WRITE_METHODS = {"put", "post", "delete", "patch", "trace"}
 _V1_PATHS = [
     "/v1/predictions/upcoming",
     "/v1/predictions/weeks",
@@ -17,6 +26,13 @@ _V1_PATHS = [
     "/v1/models/latest",
     "/v1/models/{model_version}",
 ]
+_FORBIDDEN_IMPORT_PREFIXES = (
+    "src.jobs",
+    "src.models",
+    "src.eval",
+    "src.pipeline",
+    "src.fixtures",
+)
 
 
 def _row(**overrides):
@@ -209,3 +225,67 @@ def test_openapi_routes_are_get_only(client: TestClient):
         assert path in schema["paths"]
         methods = set(schema["paths"][path]) & _HTTP_METHODS
         assert methods == {"get"}
+    for path, ops in schema["paths"].items():
+        segments = [seg for seg in path.split("/") if seg]
+        assert "predict" not in segments
+        assert (set(ops) & _HTTP_METHODS & _WRITE_METHODS) == set()
+
+
+def test_api_package_forbids_fit_and_model_imports():
+    api_root = Path(__file__).resolve().parents[1] / "src" / "api"
+    for path in sorted(api_root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            modules: list[str] = []
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                modules = [node.module]
+            for module in modules:
+                assert not module.startswith(_FORBIDDEN_IMPORT_PREFIXES), (
+                    f"{path.name} imports {module}"
+                )
+
+
+def test_upcoming_no_artefacts_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("src.api.service._now_utc_iso", lambda: NOW)
+    db = init_db(tmp_path / "empty.sqlite")
+    client = TestClient(create_app(db_path=db))
+    r = client.get("/v1/predictions/upcoming")
+    assert r.status_code == 404
+    assert r.json()["detail"] == "no model artefacts published"
+    assert client.get("/v1/predictions/weeks").status_code == 404
+    assert client.get("/v1/models/latest").status_code == 404
+
+
+def test_api_db_connection_is_read_only(tmp_path: Path):
+    db = _seed(tmp_path, predictions=True)
+    conn = connect_readonly(db)
+    with pytest.raises(sqlite3.OperationalError):
+        conn.execute(
+            "UPDATE predictions SET status = 'settled' WHERE match_id = 1"
+        )
+    conn.close()
+
+
+def test_models_latest_tolerates_corrupt_hyperparams(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr("src.api.service._now_utc_iso", lambda: NOW)
+    db = init_db(tmp_path / "p.sqlite")
+    conn = connect(db)
+    upsert_model_artefact(
+        conn,
+        "v-bad",
+        "2026-11-10",
+        "models/v-bad",
+        "{not-json",
+        created_at="2026-11-10T00:00:00Z",
+    )
+    conn.close()
+    client = TestClient(create_app(db_path=db))
+    r = client.get("/v1/models/latest")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model_version"] == "v-bad"
+    assert body["hyperparams"] is None

@@ -59,10 +59,13 @@ Jobs / Streamlit remain on write and lab paths; this app never imports fit/publi
 | Module | Owns | Does not |
 |---|---|---|
 | `src/api/app.py` | App factory, CORS, router mount, lifespan DB path | SQL; slate rules |
+| `src/api/deps.py` | Read-only SQLite open (`mode=ro`); `503` if missing/unreadable | Writes; slate rules |
 | `src/api/routes/*.py` | HTTP status codes, query params, response models | SQL; version/week logic |
 | `src/api/schemas.py` | Pydantic request/response shapes (OpenAPI) | Persistence |
 | `src/api/service.py` | Resolve latest version; upcoming filter; ISO-week list/detail | HTTP; writes |
 | `src/store/` | Read helpers for queries used by the service | HTTP; business grouping |
+
+API request connections use `connect_readonly` so a buggy handler cannot mutate the ledger. Jobs keep the existing read-write `connect`.
 
 Existing insert-once / settlement rules in the store are unchanged. Epic 4 only **adds** read helpers the service needs.
 
@@ -188,7 +191,9 @@ Error bodies use a small consistent shape, e.g. `{"detail": "…"}` (FastAPI def
 - Default version resolves to latest; pin returns the older set
 - Unknown version → `404`; unknown week → `404`; empty upcoming → `200 []`
 - Response includes null `book_*` when seeded null
-- OpenAPI lists only the documented GET routes (no write methods)
+- OpenAPI lists only the documented GET routes (no write methods, no `/predict`)
+- `src/api` import graph excludes jobs / models / eval / pipeline / fixtures
+- API opens the DB read-only; corrupt `hyperparams` JSON yields `null`, not 500
 - Existing Epic 1–3 tests remain green
 
 ## Success criteria

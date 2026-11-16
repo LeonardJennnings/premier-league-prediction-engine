@@ -40,6 +40,14 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def connect_readonly(path: Path) -> sqlite3.Connection:
+    """Open the prediction DB for reads only (API request path)."""
+    uri = f"file:{path.resolve().as_posix()}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def get_prediction(
     conn: sqlite3.Connection, match_id: int, model_version: str
 ) -> dict | None:

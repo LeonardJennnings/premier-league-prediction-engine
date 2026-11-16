@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import HTTPException, Request
 
 from src.config import PREDICTIONS_DB
-from src.store.predictions import connect
+from src.store.predictions import connect_readonly
 
 
 def get_db(request: Request) -> Iterator[sqlite3.Connection]:
@@ -15,7 +15,7 @@ def get_db(request: Request) -> Iterator[sqlite3.Connection]:
     if not path.is_file():
         raise HTTPException(status_code=503, detail="predictions database unavailable")
     try:
-        conn = connect(path)
+        conn = connect_readonly(path)
     except sqlite3.Error as exc:
         raise HTTPException(status_code=503, detail="predictions database unavailable") from exc
     try:

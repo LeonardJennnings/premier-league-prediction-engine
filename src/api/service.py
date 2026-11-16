@@ -55,7 +55,11 @@ def _artefact_payload(row: dict) -> dict:
     if raw is None or raw == "":
         hyper = None
     elif isinstance(raw, str):
-        hyper = json.loads(raw)
+        try:
+            hyper = json.loads(raw)
+        except json.JSONDecodeError:
+            # Corrupt artefact metadata must not 500 the read API.
+            hyper = None
     else:
         hyper = raw
     return {

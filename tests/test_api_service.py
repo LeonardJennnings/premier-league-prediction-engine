@@ -120,3 +120,19 @@ def test_get_model_parses_hyperparams(tmp_path: Path):
     with pytest.raises(NotFoundError):
         get_model(conn, "missing")
     conn.close()
+
+
+def test_get_model_corrupt_hyperparams_are_null(tmp_path: Path):
+    db = init_db(tmp_path / "p.sqlite")
+    conn = connect(db)
+    upsert_model_artefact(
+        conn,
+        "v-bad",
+        "2026-11-10",
+        "models/v-bad",
+        "{not-json",
+        created_at="2026-11-10T00:00:00Z",
+    )
+    payload = get_model(conn, "v-bad")
+    assert payload["hyperparams"] is None
+    conn.close()
