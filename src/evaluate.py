@@ -217,9 +217,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Premier League evaluation")
     parser.add_argument(
         "--mode",
-        choices=("season", "walkforward"),
+        choices=("season", "walkforward", "xi_tune"),
         default="season",
-        help="season = fixed 2526 gate; walkforward = gameweek walk-forward",
+        help=(
+            "season = fixed 2526 gate; walkforward = gameweek walk-forward; "
+            "xi_tune = nested ξ selection on older folds + holdout report"
+        ),
     )
     args = parser.parse_args()
 
@@ -228,6 +231,19 @@ if __name__ == "__main__":
         out = save_results(table)
         logger.info("\n%s", table.to_string(index=False))
         logger.info("Saved %s", out)
+    elif args.mode == "xi_tune":
+        from src.eval.xi_tune import run_xi_tune, write_xi_tune_artefacts
+
+        result = run_xi_tune()
+        paths = write_xi_tune_artefacts(result)
+        logger.info("Chosen ξ=%.6f (baseline=%.6f)", result.chosen_xi, result.baseline_xi)
+        logger.info("\nTune grid:\n%s", result.candidate_tune.to_string(index=False))
+        logger.info(
+            "\nHoldout comparison:\n%s",
+            result.holdout_comparison.to_string(index=False),
+        )
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)
     else:
         summary, by_gw, pred_frames = run_walkforward()
         paths = write_walkforward_artefacts(summary, by_gw, pred_frames)

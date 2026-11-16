@@ -1,0 +1,4 @@
+run_date,line,xi,half_life_days,era,seasons,n_folds,n_test,log_loss,brier,accuracy
+2026-11-16,dixon_coles_baseline,0.0019,364.8,holdout,"2526,2627",48,480,1.0628,0.2056,0.4813
+2026-11-16,dixon_coles_chosen,0.0035,198.0,holdout,"2526,2627",48,480,1.067,0.2061,0.4688
+2026-11-16,bookmaker_implied,,,holdout,"2526,2627",48,480,1.0125,0.2025,0.4938

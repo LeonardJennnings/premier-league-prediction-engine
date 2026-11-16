@@ -20,10 +20,20 @@ SEASON_CODES = ["2223", "2324", "2425", "2526", "2627"]
 DIVISION = "E0"
 BASE_URL = "https://www.football-data.co.uk/mmz4281"
 
-# Dixon–Coles: ξ in per-day units (~1 year half-life ≈ ln(2)/365)
-DIXON_COLES_XI = 0.0019
+# Dixon–Coles: ξ in per-day units. Chosen by nested walk-forward tune
+# (results/XI_TUNE.md); do not joint-MLE ξ inside the match likelihood.
+# Pre-tune baseline was 0.0019 (~365-day half-life). Frozen winner 0.0035
+# (~198-day half-life) from tune seasons 2223/2324/2425 (2026-11-16 run).
+DIXON_COLES_XI = 0.0035
 DIXON_COLES_MAX_GOALS = 8
 DIXON_COLES_L2 = 0.01
+# Nested ξ tune: select on older seasons, freeze, score recent holdout.
+# Half-lives ≈ ln(2)/ξ days: 1386, 693, 365, 277, 198, 139, 87, 58.
+XI_TUNE_CANDIDATES = (0.0005, 0.0010, 0.0019, 0.0025, 0.0035, 0.0050, 0.0080, 0.0120)
+XI_TUNE_SEASONS = ("2223", "2324", "2425")
+XI_TUNE_HOLDOUT_SEASONS = ("2526", "2627")
+# Keep the pre-tune constant available for holdout before/after tables.
+DIXON_COLES_XI_BASELINE = 0.0019
 CALIBRATION_MIN_ROWS = 200
 ELO_K = 20.0
 ELO_HOME_BONUS = 60.0

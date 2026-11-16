@@ -73,7 +73,7 @@ with
 
 ### Time decay
 
-Match age \(t\) in **days** before the as-of date is weighted by \(\phi(t)=e^{-\xi t}\). The decay rate ξ is a **fixed configuration choice** for the first release (default half-life on the order of one year, consistent with published conversions of the original half-week ξ). Dixon and Coles select ξ by a separate predictive criterion rather than joint maximum likelihood; an outer search remains a later improvement, not a blocker.
+Match age \(t\) in **days** before the as-of date is weighted by \(\phi(t)=e^{-\xi t}\). The decay rate ξ is a **frozen configuration constant** (`DIXON_COLES_XI`), chosen by nested walk-forward on older seasons and reported on a held-out recent era (`python -m src.evaluate --mode xi_tune`; see `results/XI_TUNE.md` and `docs/EVAL_PROTOCOL.md`). Dixon and Coles select ξ by a separate predictive criterion rather than joint maximum likelihood; this repo follows that rule (no in-likelihood MLE of ξ).
 
 ### Numerical safeguards grounded in the theory
 
