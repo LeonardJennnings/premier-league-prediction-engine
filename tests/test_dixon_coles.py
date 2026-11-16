@@ -1,8 +1,15 @@
 import math
 
 import numpy as np
+import pandas as pd
 
-from src.models.dixon_coles import scoreline_grid_from_rates, tau
+from src.models.dixon_coles import (
+    fit_dixon_coles,
+    predict_match,
+    scoreline_grid,
+    scoreline_grid_from_rates,
+    tau,
+)
 from src.models.markets import markets_from_grid
 
 
@@ -38,3 +45,46 @@ def test_rho_zero_grid_matches_independent_poisson_1x2():
     assert abs(m["home"] - home) < 1e-9
     assert abs(m["draw"] - draw) < 1e-9
     assert abs(m["away"] - away) < 1e-9
+
+
+def _toy_matches() -> pd.DataFrame:
+    rows = []
+    teams = ["Alpha", "Beta", "Gamma"]
+    start = pd.Timestamp("2024-01-01")
+    for i in range(30):
+        h = teams[i % 3]
+        a = teams[(i + 1) % 3]
+        rows.append(
+            {
+                "date": start + pd.Timedelta(days=i * 3),
+                "home_team": h,
+                "away_team": a,
+                "home_goals": 1 + (i % 2),
+                "away_goals": i % 2,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def test_fit_predict_probs_sum_to_one():
+    model = fit_dixon_coles(_toy_matches())
+    probs = predict_match(model, "Alpha", "Beta")
+    assert abs(probs["home"] + probs["draw"] + probs["away"] - 1.0) < 1e-8
+
+
+def test_scoreline_grid_renormalized():
+    model = fit_dixon_coles(_toy_matches())
+    grid = scoreline_grid(model, "Alpha", "Beta")
+    assert abs(grid.sum() - 1.0) < 1e-8
+
+
+def test_unseen_team_does_not_crash():
+    model = fit_dixon_coles(_toy_matches())
+    probs = predict_match(model, "NewTeam", "Alpha")
+    assert abs(sum(probs[k] for k in ("home", "draw", "away")) - 1.0) < 1e-8
+
+
+def test_mean_attack_near_one():
+    model = fit_dixon_coles(_toy_matches())
+    mean_att = sum(model.attack.values()) / len(model.attack)
+    assert abs(mean_att - 1.0) < 1e-5
