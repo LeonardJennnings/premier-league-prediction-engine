@@ -1,5 +1,5 @@
-model,run_date,n_folds,n_test,log_loss,brier,accuracy
-bookmaker_implied,2026-11-16,142,1420,0.9622,0.1904,0.5493
-naive_frequencies,2026-11-16,142,1420,1.071,0.216,0.4408
-poisson,2026-11-16,142,1420,1.0413,0.1985,0.519
-sklearn_baseline,2026-11-16,142,1420,0.9677,0.1916,0.5458
+run_date,model,n_folds,n_test,log_loss,brier,accuracy,aggregation
+2026-11-16,bookmaker_implied,142,1420,0.9622,0.1904,0.5493,pooled
+2026-11-16,naive_frequencies,142,1420,1.071,0.216,0.4408,pooled
+2026-11-16,poisson,142,1420,1.0413,0.1985,0.519,pooled
+2026-11-16,sklearn_baseline,142,1420,0.9677,0.1916,0.5458,pooled

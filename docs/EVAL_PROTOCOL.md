@@ -32,19 +32,23 @@ python -m src.evaluate --mode season
 
 Output: `results/eval_results.csv`
 
+### Gameweek walk-forward (primary research protocol)
+
+Walk-forward evaluation scores each round using only matches dated **strictly earlier** than that round. That aligns evaluation with production constraints: no peeking at the fixtures being scored.
+
+**This is the research source of truth.** The fixed season gate above is a regression check only — do not treat the `2526` table alone as the headline research result.
+
 ```bash
 python -m src.evaluate --mode walkforward
 ```
 
 Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv`, `results/calibration_*_home.png`, `results/WALKFORWARD.md`
 
-### Gameweek walk-forward (primary research protocol)
-
-Walk-forward evaluation scores each round using only matches dated **strictly earlier** than that round. That aligns evaluation with production constraints: no peeking at the fixtures being scored.
-
 **Gameweek construction.** Historical CSVs from football-data.co.uk do not include an official gameweek field. Matches are sorted by date within each season and grouped into sequential rounds of up to **10** games (approximately one Premier League round). This definition is for evaluation only. Product UI may group fixtures by calendar weekend without changing the research protocol.
 
 **Refit policy.** Models are refit at every fold on the expanding history available before that fold. Strengths are not frozen for an entire season. The job is an offline batch process; it is not executed on HTTP request paths.
+
+**Feature as-of rule.** Point-in-time columns (match id, closing implied odds) come from the match row. History-dependent features (form, Elo, decay — when added) are built per fold via `features_for_fold` / `add_features(..., history=..., cutoff=...)` and must use only matches with `date <` the fold cutoff. A helper assert rejects future-looking history joins.
 
 **Comparators**
 
@@ -63,13 +67,15 @@ Walk-forward evaluation scores each round using only matches dated **strictly ea
 | Brier score | Lower | Squared error of the probability vector |
 | Accuracy | Higher | Secondary; top-1 hit rate only |
 
-**Calibration.** Reliability plots bucket predicted probabilities against observed frequencies. Diagonal-tracking curves matter more than a headline accuracy figure.
+**Summary aggregation.** `walkforward_summary.csv` reports **pooled** log loss, Brier, and accuracy over all scored matches (equivalent to an n-weighted fold mean for these averages). `walkforward_by_gameweek.csv` keeps per-fold rows for diagnosis when fold sizes or odds coverage differ.
+
+**Calibration.** Reliability plots bucket predicted probabilities against observed frequencies (home-win only today). Diagonal-tracking curves matter more than a headline accuracy figure. Expected calibration error (ECE) and full 1X2 (draw/away) reliability plots are natural follow-ups when richer models need a fuller honesty read.
 
 **Target artefacts**
 
 | Path | Contents |
 |---|---|
-| `results/walkforward_summary.csv` | Aggregate metrics by model |
+| `results/walkforward_summary.csv` | Pooled aggregate metrics by model |
 | `results/walkforward_by_gameweek.csv` | Metrics by round |
 | `results/calibration_*.png` | Reliability plots |
 | `results/WALKFORWARD.md` | Reproduce steps beside the artefacts |

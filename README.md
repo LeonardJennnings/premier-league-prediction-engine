@@ -120,7 +120,9 @@ Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walk
 
 ## Results
 
-Fixed backtest: train on seasons `2223`–`2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss / Brier is better.
+**Research source of truth is gameweek walk-forward** (`python -m src.evaluate --mode walkforward`), not the fixed season gate below. The `2526` table is a regression smoke check; see `results/walkforward_summary.csv` and [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) for the primary protocol.
+
+Fixed backtest (season gate): train on seasons `2223`–`2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss / Brier is better.
 
 | Model | Log loss | Brier | Accuracy |
 |-------|----------|-------|----------|
