@@ -20,6 +20,10 @@ def _synthetic_matches(n: int = 30) -> pd.DataFrame:
     home_odds = 1.8 + 0.02 * np.arange(n)
     draw_odds = 3.4 + 0.01 * np.arange(n)
     away_odds = 4.0 - 0.01 * np.arange(n)
+    # Opening slightly softer than closing so the two book lines differ.
+    home_open = home_odds + 0.05
+    draw_open = draw_odds + 0.05
+    away_open = away_odds - 0.05
     results = ["H", "D", "A"] * ((n // 3) + 1)
     return pd.DataFrame(
         {
@@ -30,6 +34,9 @@ def _synthetic_matches(n: int = 30) -> pd.DataFrame:
             "home_goals": [1] * n,
             "away_goals": [0] * n,
             "result": results[:n],
+            "home_odds_open": home_open,
+            "draw_odds_open": draw_open,
+            "away_odds_open": away_open,
             "home_odds_close": home_odds,
             "draw_odds_close": draw_odds,
             "away_odds_close": away_odds,
@@ -163,6 +170,12 @@ def test_run_walkforward_synthetic_integration(tmp_path: Path):
     sums = book["p_home"] + book["p_draw"] + book["p_away"]
     assert np.allclose(sums.to_numpy(dtype=float), 1.0, atol=1e-9)
 
+    opening = pred_frames["bookmaker_opening"]
+    assert not opening.empty
+    open_sums = opening["p_home"] + opening["p_draw"] + opening["p_away"]
+    assert np.allclose(open_sums.to_numpy(dtype=float), 1.0, atol=1e-9)
+    assert "bookmaker_opening" in set(summary["model"])
+
 
 def test_new_models_import_and_fit_on_synthetic():
     from src.models.dixon_coles import fit_dixon_coles, predict_match as dc_predict
@@ -238,9 +251,11 @@ def test_calibrated_line_uses_only_prior_folds(monkeypatch):
 def test_over_under_book_row_when_implied_over_present():
     frame = _mixed_matches(20)
     frame["implied_over_25"] = 0.55
+    frame["implied_over_25_open"] = 0.52
     matches = assign_gameweeks(frame, matches_per_gw=5)
     summary, _, _ = run_walkforward(matches, min_train_rows=5)
     assert "bookmaker_over_25" in set(summary["model"])
+    assert "bookmaker_over_25_open" in set(summary["model"])
     row = summary.loc[summary["model"] == "bookmaker_over_25"].iloc[0]
     assert row["n_test"] > 0
     assert row["log_loss"] > 0
@@ -255,7 +270,25 @@ def test_over_under_book_row_when_implied_over_present():
     assert set(summary.loc[summary["market"] == "over_under_25", "model"]) >= {
         "dixon_coles_over_25",
         "bookmaker_over_25",
+        "bookmaker_over_25_open",
     }
+
+
+def test_walkforward_scores_opening_book_when_odds_present():
+    matches = assign_gameweeks(_synthetic_matches(25), matches_per_gw=5)
+    summary, _, preds = run_walkforward(matches, min_train_rows=5)
+    assert "bookmaker_opening" in set(summary["model"])
+    assert "bookmaker_implied" in set(summary["model"])
+    open_row = summary.loc[summary["model"] == "bookmaker_opening"].iloc[0]
+    close_row = summary.loc[summary["model"] == "bookmaker_implied"].iloc[0]
+    assert open_row["market"] == "1x2"
+    assert close_row["market"] == "1x2"
+    assert open_row["n_test"] > 0
+    # Opening and closing should not be identical on this synthetic set.
+    assert not np.allclose(
+        preds["bookmaker_opening"]["p_home"].to_numpy(dtype=float),
+        preds["bookmaker_implied"]["p_home"].to_numpy(dtype=float),
+    )
 
 
 def test_walkforward_readme_names_new_models(tmp_path):
@@ -293,6 +326,8 @@ def test_walkforward_readme_names_new_models(tmp_path):
     assert "dixon_coles_over_25" in text
     assert "dixon_coles_btts" in text
     assert "elo" in text
+    assert "bookmaker_opening" in text
+    assert "bookmaker_over_25_open" in text
     assert "prior" in text.lower()
     assert "pooled" in text.lower()
     assert "do not rank" in text.lower()
@@ -306,9 +341,19 @@ def test_season_gate_reports_dixon_coles_and_elo_not_calibrated():
     test = _mixed_matches(6)
     test["season_code"] = "2526"
     test["date"] = pd.date_range("2025-08-01", periods=6, freq="D")
+    # Opening implied probs for season-gate bookmaker_opening row.
+    test["implied_home_open"] = test["implied_home"] + 0.01
+    test["implied_draw_open"] = test["implied_draw"] - 0.005
+    test["implied_away_open"] = 1.0 - test["implied_home_open"] - test["implied_draw_open"]
     table = run_backtest(matches=pd.concat([train, test], ignore_index=True))
     models = set(table["model"])
     assert "dixon_coles" in models
     assert "elo" in models
     assert "dixon_coles_calibrated" not in models
-    assert {"naive_frequencies", "poisson", "sklearn_baseline", "bookmaker_implied"} <= models
+    assert {
+        "naive_frequencies",
+        "poisson",
+        "sklearn_baseline",
+        "bookmaker_implied",
+        "bookmaker_opening",
+    } <= models

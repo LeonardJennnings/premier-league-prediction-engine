@@ -284,7 +284,9 @@ def run_walkforward(
         "elo": [],
         "sklearn_baseline": [],
         "bookmaker_implied": [],
+        "bookmaker_opening": [],
         "bookmaker_over_25": [],
+        "bookmaker_over_25_open": [],
     }
 
     prior_dc_y: list[str] = []
@@ -490,6 +492,42 @@ def run_walkforward(
                     }
                 )
 
+        open_cols = [
+            "implied_home_open",
+            "implied_draw_open",
+            "implied_away_open",
+        ]
+        if set(open_cols) <= set(test.columns):
+            open_test = test.dropna(subset=open_cols + ["result"])
+            if not open_test.empty:
+                open_P = open_test[open_cols].to_numpy(dtype=float)
+                y_open = open_test["result"].tolist()
+                n_train_open = (
+                    int(train.dropna(subset=open_cols).shape[0])
+                    if set(open_cols) <= set(train.columns)
+                    else 0
+                )
+                by_gw_rows.append(
+                    _metric_row(
+                        run_at,
+                        "bookmaker_opening",
+                        season,
+                        gw,
+                        n_train_open,
+                        y_open,
+                        open_P,
+                    )
+                )
+                for i, (_, row) in enumerate(open_test.iterrows()):
+                    pred_records["bookmaker_opening"].append(
+                        {
+                            "result": row["result"],
+                            "p_home": open_P[i, 0],
+                            "p_draw": open_P[i, 1],
+                            "p_away": open_P[i, 2],
+                        }
+                    )
+
         if "implied_over_25" in test.columns:
             ou_test = test.dropna(subset=["implied_over_25", "home_goals", "away_goals"])
             if not ou_test.empty:
@@ -516,6 +554,37 @@ def run_walkforward(
                 )
                 for y_i, p_i in zip(y_over.to_numpy(), p_over):
                     pred_records["bookmaker_over_25"].append(
+                        {"y_over": float(y_i), "p_over": float(p_i)}
+                    )
+
+        if "implied_over_25_open" in test.columns:
+            ou_open = test.dropna(
+                subset=["implied_over_25_open", "home_goals", "away_goals"]
+            )
+            if not ou_open.empty:
+                y_over_o = (
+                    (ou_open["home_goals"] + ou_open["away_goals"]) >= 3
+                ).astype(float)
+                p_over_o = ou_open["implied_over_25_open"].to_numpy(dtype=float)
+                n_train_ou_o = (
+                    int(train["implied_over_25_open"].notna().sum())
+                    if "implied_over_25_open" in train.columns
+                    else 0
+                )
+                by_gw_rows.append(
+                    _binary_metric_row(
+                        run_at,
+                        "bookmaker_over_25_open",
+                        season,
+                        gw,
+                        n_train_ou_o,
+                        y_over_o,
+                        p_over_o,
+                        market="over_under_25",
+                    )
+                )
+                for y_i, p_i in zip(y_over_o.to_numpy(), p_over_o):
+                    pred_records["bookmaker_over_25_open"].append(
                         {"y_over": float(y_i), "p_over": float(p_i)}
                     )
 
@@ -564,7 +633,8 @@ def write_walkforward_artefacts(
         "- Features: built per fold; history-dependent columns use date < fold cutoff only\n"
         "- Minimum train rows: 200\n"
         "- Models (1X2, market=1x2): naive_frequencies, poisson, dixon_coles, "
-        "dixon_coles_calibrated, elo, sklearn_baseline, bookmaker_implied\n"
+        "dixon_coles_calibrated, elo, sklearn_baseline, bookmaker_implied "
+        "(Bet365 closing), bookmaker_opening (Bet365 pre-closing)\n"
         "- dixon_coles_calibrated: temperature scaling fit on prior-fold "
         "Dixon–Coles 1X2 predictions only. The line is skipped until that "
         f"prior store has at least {CALIBRATION_MIN_ROWS} rows "
@@ -572,10 +642,11 @@ def write_walkforward_artefacts(
         "differ from raw Dixon–Coles; compare them on shared gameweeks.\n"
         "- Binary markets (do not rank against 1X2): dixon_coles_over_25 "
         "(market=over_under_25) and dixon_coles_btts (market=btts) are scored "
-        "from the raw scoreline grid every fold. bookmaker_over_25 uses the "
-        "same binary metrics when `implied_over_25` is present; missing O/U "
-        "odds drop a row from the book comparison only. Temperature scaling "
-        "does not change O/U or BTTS.\n"
+        "from the raw scoreline grid every fold. bookmaker_over_25 uses "
+        "closing totals (`implied_over_25`); bookmaker_over_25_open uses "
+        "pre-closing totals when present. Missing O/U odds drop a row from "
+        "that book comparison only. Temperature scaling does not change "
+        "O/U or BTTS.\n"
         "- ξ (`DIXON_COLES_XI`) is a config constant, not jointly estimated.\n"
         "- Summary metrics: pooled over all scored matches (per-fold CSV for diagnosis)\n"
         "- Calibration plots: home-win reliability for 1X2 lines\n"
