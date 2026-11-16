@@ -14,6 +14,7 @@ from src.config import RESULTS
 from src.eval.calibration import plot_reliability, reliability_table
 from src.eval.gameweeks import assign_gameweeks
 from src.evaluate import accuracy, brier_score, log_loss
+from src.features import features_for_fold
 from src.models.baseline import fit_baseline, predict_match_features
 from src.models.poisson import fit_poisson, predict_match
 
@@ -93,15 +94,68 @@ def _metric_row(
     }
 
 
+def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], run_at: str) -> pd.DataFrame:
+    """Research SoT row: pooled proper scores over all scored matches.
+
+    Per-fold means can skew the headline when fold sizes differ (partial
+    gameweeks, odds dropouts). Pooled log loss / Brier / accuracy use every
+    prediction once. Per-fold tables remain in ``by_gw`` for diagnosis.
+    """
+    rows = []
+    models = sorted(by_gw["model"].unique()) if not by_gw.empty else list(pred_frames)
+    for model in models:
+        frame = pred_frames.get(model, pd.DataFrame())
+        fold_rows = by_gw[by_gw["model"] == model] if not by_gw.empty else pd.DataFrame()
+        n_folds = int(len(fold_rows))
+        n_test_folds = int(fold_rows["n_test"].sum()) if not fold_rows.empty else 0
+
+        if frame.empty:
+            rows.append(
+                {
+                    "run_date": run_at,
+                    "model": model,
+                    "n_folds": n_folds,
+                    "n_test": n_test_folds,
+                    "log_loss": float("nan"),
+                    "brier": float("nan"),
+                    "accuracy": float("nan"),
+                    "aggregation": "pooled",
+                }
+            )
+            continue
+
+        y_true = frame["result"].tolist()
+        P = frame[["p_home", "p_draw", "p_away"]].to_numpy(dtype=float)
+        rows.append(
+            {
+                "run_date": run_at,
+                "model": model,
+                "n_folds": n_folds,
+                "n_test": len(y_true),
+                "log_loss": round(log_loss(y_true, P), 4),
+                "brier": round(brier_score(y_true, P), 4),
+                "accuracy": round(accuracy(y_true, P), 4),
+                "aggregation": "pooled",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def run_walkforward(
     matches: pd.DataFrame | None = None,
+    *,
+    min_train_rows: int = MIN_TRAIN_ROWS,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
-    """Run full walk-forward; return summary, by-gameweek, and per-model prediction frames."""
+    """Run full walk-forward; return summary, by-gameweek, and per-model prediction frames.
+
+    Features are built per fold via :func:`src.features.features_for_fold` so
+    history-dependent columns cannot see the test window.
+    """
     from src.clean import build_matches_table
-    from src.features import add_features
 
     if matches is None:
-        matches = add_features(build_matches_table())
+        # Raw cleaned table — fold loop applies as-of features.
+        matches = build_matches_table()
     matches = assign_gameweeks(matches)
     matches["date"] = pd.to_datetime(matches["date"])
 
@@ -114,7 +168,8 @@ def run_walkforward(
         "bookmaker_implied": [],
     }
 
-    for train, test, season, gw in iter_folds(matches):
+    for train_raw, test_raw, season, gw in iter_folds(matches, min_train_rows=min_train_rows):
+        train, test = features_for_fold(train_raw, test_raw)
         y_all = test["result"].tolist()
 
         naive_P = _naive_probas(train, len(test))
@@ -156,7 +211,7 @@ def run_walkforward(
         base_test = test.dropna(
             subset=["implied_home", "implied_draw", "implied_away", "result"]
         )
-        if len(base_train) >= MIN_TRAIN_ROWS and not base_test.empty:
+        if len(base_train) >= min_train_rows and not base_test.empty:
             baseline_model = fit_baseline(base_train)
             baseline_rows = [
                 predict_match_features(baseline_model, row)
@@ -198,18 +253,8 @@ def run_walkforward(
                 )
 
     by_gw = pd.DataFrame(by_gw_rows)
-    summary = by_gw.groupby("model", as_index=False).agg(
-        run_date=("run_date", "first"),
-        n_folds=("gameweek", "count"),
-        n_test=("n_test", "sum"),
-        log_loss=("log_loss", "mean"),
-        brier=("brier", "mean"),
-        accuracy=("accuracy", "mean"),
-    )
-    for col in ("log_loss", "brier", "accuracy"):
-        summary[col] = summary[col].round(4)
-
     pred_frames = {k: pd.DataFrame(v) for k, v in pred_records.items()}
+    summary = _pooled_summary(by_gw, pred_frames, run_at)
     return summary, by_gw, pred_frames
 
 
@@ -249,8 +294,10 @@ def write_walkforward_artefacts(
         "\n"
         "- Folds: synthetic gameweeks (<=10 matches, date-ordered within each season)\n"
         "- Train: all matches with date strictly before the fold\n"
+        "- Features: built per fold; history-dependent columns use date < fold cutoff only\n"
         "- Minimum train rows: 200\n"
         "- Models: naive_frequencies, poisson, sklearn_baseline, bookmaker_implied\n"
+        "- Summary metrics: pooled over all scored matches (per-fold CSV for diagnosis)\n"
         "- Calibration plots: home-win reliability\n"
         "\n"
         "## Regenerate\n"
