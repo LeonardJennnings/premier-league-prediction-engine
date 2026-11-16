@@ -1,5 +1,5 @@
 ---
-import { pct } from "../lib/format";
+import { pctWidths } from "../lib/metrics";
 
 interface Props {
   kind: "model" | "book";
@@ -10,9 +10,12 @@ interface Props {
 
 const { kind, home, draw, away } = Astro.props;
 const missing = home == null || draw == null || away == null;
-const h = missing ? 0 : Math.round(home! * 100);
-const d = missing ? 0 : Math.round(draw! * 100);
-const a = missing ? 0 : Math.round(away! * 100);
+const widths = missing
+  ? { home: 0, draw: 0, away: 0 }
+  : pctWidths({ home: home!, draw: draw!, away: away! });
+const h = widths.home;
+const d = widths.draw;
+const a = widths.away;
 const label = kind === "model" ? "Model" : "Book";
 const aria = missing
   ? `${label} probabilities unavailable`
@@ -32,9 +35,9 @@ const aria = missing
         role="img"
         aria-label={aria}
       >
-        <div class="seg home" style={`width:${h}%`}>{h}</div>
-        <div class="seg draw" style={`width:${d}%`}>{d}</div>
-        <div class="seg away" style={`width:${a}%`}>{a}</div>
+        <div class="seg home" style={`width:${h}%`}>{h >= 12 ? h : ""}</div>
+        <div class="seg draw" style={`width:${d}%`}>{d >= 12 ? d : ""}</div>
+        <div class="seg away" style={`width:${a}%`}>{a >= 12 ? a : ""}</div>
       </div>
     )
   }
@@ -42,7 +45,7 @@ const aria = missing
     {
       missing
         ? "H — / D — / A —"
-        : `H ${pct(home)} / D ${pct(draw)} / A ${pct(away)}`
+        : `H ${h} / D ${d} / A ${a}`
     }
   </span>
 </div>

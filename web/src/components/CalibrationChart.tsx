@@ -1,44 +1,112 @@
 /**
- * Calibration / reliability curve shell.
- * TODO(Data Scientist): plot reliability points from walk-forward folds;
- * soft draw-in optional via Designer + Motion.
+ * Calibration / reliability curve for home-win probability.
+ * Diagonal = perfect calibration. Points from settled outcome buckets.
  */
 
+export type CalibrationPointProp = {
+  predicted: number;
+  observed: number;
+  n: number;
+};
+
 type Props = {
+  points?: CalibrationPointProp[];
   note?: string;
 };
 
 export default function CalibrationChart({
-  note = "Lorem ipsum dolor sit amet — curve placeholder until fold metrics land.",
+  points = [],
+  note = "Reliability peek for home wins: points near the diagonal are well calibrated.",
 }: Props) {
+  const w = 240;
+  const h = 140;
+  const padL = 24;
+  const padB = 24;
+  const padT = 16;
+  const padR = 20;
+  const innerW = w - padL - padR;
+  const innerH = h - padT - padB;
+
+  const toX = (p: number) => padL + p * innerW;
+  const toY = (p: number) => padT + (1 - p) * innerH;
+
+  const sorted = [...points].sort((a, b) => a.predicted - b.predicted);
+  const poly =
+    sorted.length === 0
+      ? ""
+      : sorted
+          .map((pt, i) => {
+            const x = toX(pt.predicted).toFixed(1);
+            const y = toY(pt.observed).toFixed(1);
+            return `${i === 0 ? "" : " "}${x},${y}`;
+          })
+          .join("");
+
   return (
     <figure className="cal">
       <svg
-        viewBox="0 0 240 140"
+        viewBox={`0 0 ${w} ${h}`}
         role="img"
-        aria-label="Calibration curve placeholder"
+        aria-label={
+          sorted.length === 0
+            ? "Calibration curve unavailable"
+            : "Reliability curve of predicted versus observed home-win rate"
+        }
       >
-        <line x1="24" y1="116" x2="220" y2="116" stroke="currentColor" strokeWidth="1" />
-        <line x1="24" y1="116" x2="24" y2="16" stroke="currentColor" strokeWidth="1" />
         <line
-          x1="24"
-          y1="116"
-          x2="220"
-          y2="16"
+          x1={padL}
+          y1={h - padB}
+          x2={w - padR}
+          y2={h - padB}
+          stroke="currentColor"
+          strokeWidth="1"
+        />
+        <line
+          x1={padL}
+          y1={h - padB}
+          x2={padL}
+          y2={padT}
+          stroke="currentColor"
+          strokeWidth="1"
+        />
+        <line
+          x1={padL}
+          y1={h - padB}
+          x2={w - padR}
+          y2={padT}
           stroke="currentColor"
           strokeWidth="1"
           strokeDasharray="3 3"
           opacity="0.45"
         />
-        {/* Placeholder polyline — DS replaces with real points */}
-        <polyline
-          fill="none"
-          stroke="var(--model)"
-          strokeWidth="2"
-          points="24,110 60,96 100,78 140,62 180,40 220,28"
-        />
+        {poly ? (
+          <polyline
+            fill="none"
+            stroke="var(--model)"
+            strokeWidth="2"
+            points={poly}
+          />
+        ) : null}
+        {sorted.map((pt) => (
+          <circle
+            key={`${pt.predicted}-${pt.n}`}
+            cx={toX(pt.predicted)}
+            cy={toY(pt.observed)}
+            r={3.2}
+            fill="var(--model)"
+          >
+            <title>
+              Predicted {Math.round(pt.predicted * 100)}%, observed{" "}
+              {Math.round(pt.observed * 100)}% (n={pt.n})
+            </title>
+          </circle>
+        ))}
       </svg>
-      <figcaption>{note}</figcaption>
+      <figcaption>
+        {sorted.length === 0
+          ? "No settled matches yet for a reliability curve."
+          : note}
+      </figcaption>
       <style>{`
         .cal {
           margin: 0;

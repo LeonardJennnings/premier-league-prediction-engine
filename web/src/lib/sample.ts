@@ -1,9 +1,10 @@
 /**
  * Lorem / sample fixtures for empty-API local preview.
- * Not production data — Designer/DS should not treat these as eval truth.
+ * Not production data — do not treat these as walk-forward eval truth.
  */
 
 import type { MatchPrediction } from "./types";
+import sampleSettled from "./sample-settled.json";
 
 const base = {
   competition: "PL",
@@ -86,13 +87,6 @@ export const SAMPLE_UPCOMING: MatchPrediction[] = [
   },
 ];
 
-/** Sample hit/miss pattern (~61/100) for waffle shell until DS binds settled weeks. */
-export const SAMPLE_WAFFLE: boolean[] = (() => {
-  const hits = [
-    1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0,
-    1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1,
-    1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0,
-    1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0,
-  ];
-  return hits.map((v) => v === 1);
-})();
+/** Settled sample slate for peeks when the API has no weeks. */
+export const SAMPLE_SETTLED: MatchPrediction[] =
+  sampleSettled as MatchPrediction[];

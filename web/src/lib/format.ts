@@ -30,7 +30,10 @@ export function resultLabel(result: string | null | undefined): string {
   return result;
 }
 
-/** Top 1X2 outcome from model probs — used for hit/miss shells (DS owns final binding). */
+/**
+ * Top 1X2 outcome from model probs.
+ * Prefer `topOneXTwo` from `./metrics` for new call sites (tie-break documented there).
+ */
 export function topOneXTwo(pHome: number, pDraw: number, pAway: number): "H" | "D" | "A" {
   if (pHome >= pDraw && pHome >= pAway) return "H";
   if (pDraw >= pAway) return "D";

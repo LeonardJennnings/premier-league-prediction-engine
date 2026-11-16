@@ -1,21 +1,42 @@
 /**
- * Hit / miss waffle shell.
- * TODO(Data Scientist): bind cells from settled matches (top 1X2 vs result);
- * compute hit count / total; optional fold filters. Do not invent win-rate heroes.
- * TODO(Designer): Motion optional; keep labels for hit/miss (not colour-only).
+ * Hit / miss waffle — one cell per settled match.
+ * Hit = model's top 1X2 matched the result. Labels required (not colour-only).
  */
 
+export type WaffleCellProp = boolean | { hit: boolean; title?: string };
+
 type Props = {
-  cells: boolean[];
+  cells: WaffleCellProp[];
   caption?: string;
 };
+
+function normalize(cell: WaffleCellProp): { hit: boolean; title: string } {
+  if (typeof cell === "boolean") {
+    return { hit: cell, title: cell ? "Hit" : "Miss" };
+  }
+  return {
+    hit: cell.hit,
+    title: cell.title ?? (cell.hit ? "Hit" : "Miss"),
+  };
+}
 
 export default function HitMissWaffle({
   cells,
   caption = "Each square is one settled match. Hit = model’s top home / draw / away matched the result. Miss = it did not.",
 }: Props) {
-  const hits = cells.filter(Boolean).length;
-  const total = cells.length;
+  const normalized = cells.map(normalize);
+  const hits = normalized.filter((c) => c.hit).length;
+  const total = normalized.length;
+
+  if (total === 0) {
+    return (
+      <div className="waffle-block">
+        <p className="waffle-caption">
+          No settled matches yet — the waffle appears after results land.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="waffle-block">
@@ -30,22 +51,22 @@ export default function HitMissWaffle({
         role="img"
         aria-label={`Waffle: ${hits} hits and ${total - hits} misses across ${total} settled matches`}
       >
-        {cells.map((hit, i) => (
+        {normalized.map((c, i) => (
           <div
             key={i}
-            className={hit ? "cell hit" : "cell miss"}
-            title={hit ? "Hit" : "Miss"}
+            className={c.hit ? "cell hit" : "cell miss"}
+            title={c.title}
           />
         ))}
       </div>
       <div className="legend">
         <span>
           <i className="sw-hit" aria-hidden="true" />
-          Hit
+          Hit ({hits})
         </span>
         <span>
           <i className="sw-miss" aria-hidden="true" />
-          Miss
+          Miss ({total - hits})
         </span>
       </div>
       <style>{`

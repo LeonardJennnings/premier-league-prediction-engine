@@ -1,7 +1,7 @@
 ---
 /**
  * Past scorecard index — immutable weeks from Epic 4.
- * Version C peeks (counted stats + waffle) live here after the week list / detail.
+ * Version C peeks: counted proper scores + hit/miss waffle + calibration / buckets.
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MatchRow from "../components/MatchRow.astro";
@@ -10,8 +10,14 @@ import CountedStat from "../components/CountedStat";
 import OutcomeBucketTable from "../components/OutcomeBucketTable";
 import CalibrationChart from "../components/CalibrationChart";
 import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
-import { SAMPLE_UPCOMING, SAMPLE_WAFFLE } from "../lib/sample";
-import { topOneXTwo } from "../lib/format";
+import { SAMPLE_SETTLED } from "../lib/sample";
+import {
+  buildWaffle,
+  formatBrier,
+  formatLogLoss,
+  homeOutcomeBuckets,
+  properScores,
+} from "../lib/metrics";
 import type { MatchPrediction } from "../lib/types";
 
 const apiBase = getApiBase();
@@ -21,54 +27,56 @@ let notice: string | null = null;
 let modelVersion = "sample-local";
 let weeks: { iso_week: string; match_count: number }[] = [];
 let detailMatches: MatchPrediction[] = [];
+let peekMatches: MatchPrediction[] = [];
 let selectedWeek: string | null = null;
-let waffleCells = SAMPLE_WAFFLE;
+let usingSamplePeeks = false;
 
 if (!weeksResult.ok) {
   notice =
     weeksResult.status === 0
       ? `API unreachable at ${apiBase}. Showing sample peeks.`
       : `API ${weeksResult.status}: ${weeksResult.detail}. Showing sample peeks.`;
-  detailMatches = SAMPLE_UPCOMING.map((m, i) => ({
-    ...m,
-    status: "settled",
-    home_goals: i % 3 === 0 ? 1 : 2,
-    away_goals: i % 2,
-    result: (["H", "D", "A", "H"] as const)[i],
-    settled_at: "2026-11-10T22:00:00Z",
-  }));
+  detailMatches = SAMPLE_SETTLED.slice(0, 4);
+  peekMatches = SAMPLE_SETTLED;
   selectedWeek = "sample";
+  usingSamplePeeks = true;
 } else {
   modelVersion = weeksResult.data.model_version;
   weeks = weeksResult.data.weeks;
   if (weeks.length === 0) {
     notice = "No settled weeks yet. Showing sample peeks.";
-    detailMatches = SAMPLE_UPCOMING.map((m, i) => ({
-      ...m,
-      status: "settled",
-      home_goals: i % 3 === 0 ? 1 : 2,
-      away_goals: i % 2,
-      result: (["H", "D", "A", "H"] as const)[i],
-      settled_at: "2026-11-10T22:00:00Z",
-    }));
+    detailMatches = SAMPLE_SETTLED.slice(0, 4);
+    peekMatches = SAMPLE_SETTLED;
     selectedWeek = "sample";
+    usingSamplePeeks = true;
   } else {
     selectedWeek = weeks[0].iso_week;
-    const weekResult = await fetchWeek(selectedWeek);
-    if (weekResult.ok) {
-      detailMatches = weekResult.data.matches;
-      // Lightweight shell binding — DS owns production hit/miss + metrics.
-      waffleCells = detailMatches.map((m) => {
-        if (!m.result) return false;
-        return topOneXTwo(m.p_home, m.p_draw, m.p_away) === m.result;
-      });
+    const weekBatches = await Promise.all(
+      weeks.map((w) => fetchWeek(w.iso_week)),
+    );
+    const allSettled: MatchPrediction[] = [];
+    for (const wr of weekBatches) {
+      if (wr.ok) allSettled.push(...wr.data.matches);
+    }
+    peekMatches = allSettled;
+    const latest = weekBatches[0];
+    if (latest && latest.ok) {
+      detailMatches = latest.data.matches;
     } else {
-      notice = `Could not load ${selectedWeek}: ${weekResult.detail}`;
+      notice = `Could not load ${selectedWeek}: ${latest && !latest.ok ? latest.detail : "unknown error"}`;
     }
   }
 }
 
-const hits = waffleCells.filter(Boolean).length;
+const waffle = buildWaffle(peekMatches);
+const scores = properScores(peekMatches);
+const buckets = homeOutcomeBuckets(peekMatches);
+const brierLabel = usingSamplePeeks
+  ? "mean Brier (1X2) — sample"
+  : "mean Brier (1X2)";
+const llLabel = usingSamplePeeks
+  ? "mean log loss — sample"
+  : "mean log loss (1X2)";
 ---
 
 <BaseLayout
@@ -127,17 +135,29 @@ const hits = waffleCells.filter(Boolean).length;
     <div class="peek">
       <h2 class="section">Past / hit vs miss</h2>
       <div class="counted">
-        <CountedStat client:load value={String(hits)} label={`hits / ${waffleCells.length} settled`} />
-        {/* TODO(Data Scientist): real mean Brier / log-loss from walk-forward */}
-        <CountedStat client:load value="0.198" label="mean Brier (1X2) — placeholder" />
+        <CountedStat
+          client:load
+          value={String(waffle.hits)}
+          label={`hits / ${waffle.total} settled`}
+        />
+        <CountedStat
+          client:load
+          value={formatBrier(scores.meanBrier)}
+          label={brierLabel}
+        />
+        <CountedStat
+          client:load
+          value={formatLogLoss(scores.meanLogLoss)}
+          label={llLabel}
+        />
       </div>
-      <HitMissWaffle client:load cells={waffleCells} />
+      <HitMissWaffle client:load cells={waffle.cells} />
     </div>
     <div class="peek">
       <h2 class="section">Calibration peek</h2>
-      <CalibrationChart client:load />
+      <CalibrationChart client:load points={buckets.points} />
       <div class="bucket-wrap">
-        <OutcomeBucketTable client:load />
+        <OutcomeBucketTable client:load rows={buckets.rows} />
       </div>
     </div>
   </section>
@@ -193,6 +213,7 @@ const hits = waffleCells.filter(Boolean).length;
   }
   .counted {
     display: flex;
+    flex-wrap: wrap;
     gap: 20px;
     margin-bottom: 14px;
   }

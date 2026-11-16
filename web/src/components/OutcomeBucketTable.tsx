@@ -1,8 +1,6 @@
 /**
- * Outcome-bucket frequency table shell (viz #6).
- * TODO(Data Scientist): bind real walk-forward buckets
- * (when model said ~X%, what happened). Keep distinct from hit/miss waffle.
- * TODO(Designer): HeroUI Table theming if adopted.
+ * Outcome-bucket frequency table (viz #6).
+ * When the model said home ~X%, what happened — distinct from hit/miss waffle.
  */
 
 type BucketRow = {
@@ -14,24 +12,37 @@ type BucketRow = {
 
 type Props = {
   rows?: BucketRow[];
+  caption?: string;
 };
 
-const PLACEHOLDER: BucketRow[] = [
-  { bucket: "30–40%", predictedShare: "lorem", observedShare: "ipsum", n: "—" },
-  { bucket: "40–50%", predictedShare: "dolor", observedShare: "sit", n: "—" },
-  { bucket: "50–60%", predictedShare: "amet", observedShare: "consectetur", n: "—" },
-];
+export default function OutcomeBucketTable({
+  rows = [],
+  caption = "Home-win probability bands vs observed home-win rate",
+}: Props) {
+  if (rows.length === 0) {
+    return (
+      <div className="buckets">
+        <p className="empty">No outcome buckets yet — need settled matches.</p>
+        <style>{`
+          .buckets .empty {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--ink-soft);
+          }
+        `}</style>
+      </div>
+    );
+  }
 
-export default function OutcomeBucketTable({ rows = PLACEHOLDER }: Props) {
   return (
     <div className="buckets">
       <table>
-        <caption>Outcome buckets (placeholder)</caption>
+        <caption>{caption}</caption>
         <thead>
           <tr>
-            <th scope="col">Model said</th>
-            <th scope="col">Share predicted</th>
-            <th scope="col">Share observed</th>
+            <th scope="col">Model P(home)</th>
+            <th scope="col">Mean predicted</th>
+            <th scope="col">Home won</th>
             <th scope="col">n</th>
           </tr>
         </thead>
