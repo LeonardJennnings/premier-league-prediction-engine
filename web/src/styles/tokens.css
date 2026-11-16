@@ -1,26 +1,41 @@
 /**
- * Structural tokens aligned with Version C preview.
- * TODO(Designer): own final hex, type scale, radii, and HeroUI theme tokens.
- * Do not invent a second palette here without coordinating.
+ * Version C visual tokens — Epic 5
+ * Matches docs/epic5-preview + epic5-design-system-direction.
+ * Accent: pitch green on the model strip only. Light paper surfaces.
+ * HeroUI semantic vars remapped away from marketing defaults.
  */
-:root {
+:root,
+[data-theme="light"],
+.light {
+  color-scheme: light;
+
+  /* Paper / ink */
   --paper: #f3f1ec;
   --paper-2: #ebe7df;
   --ink: #161616;
   --ink-soft: #5a5a55;
   --line: #cfc9bc;
   --line-soft: #ddd7cb;
+
+  /* Accent — pitch green (model only) */
   --model: #1f6b4a;
   --model-soft: #d7ebe1;
-  --miss: #e8e4db;
   --hit: #1f6b4a;
+  --miss: #e8e4db;
+
+  /* Strip greys */
   --home-fill: #2a2a28;
   --draw-fill: #c4bfb4;
   --away-fill: #6e6a62;
+  --book-home: #3a3936;
+  --book-draw: #b8b3a8;
+  --book-away: #7a756c;
+
+  /* Layout — 4/8 spacing; 2–3 radii; one shadow rule */
   --radius: 3px;
+  --radius-sm: 2px;
+  --radius-lg: 4px;
   --max: 720px;
-  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,4 +43,29 @@
   --space-5: 20px;
   --space-6: 28px;
   --space-7: 36px;
+  --shadow-sheet: 0 1px 0 rgba(22, 22, 22, 0.04);
+
+  /* Type */
+  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* HeroUI semantic overrides — instrument, not marketing */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --surface: var(--paper);
+  --surface-foreground: var(--ink);
+  --overlay: var(--paper-2);
+  --overlay-foreground: var(--ink);
+  --accent: var(--model);
+  --accent-foreground: #f7f5f0;
+  --default: var(--paper-2);
+  --default-foreground: var(--ink);
+  --muted: var(--ink-soft);
+  --border: var(--line);
+  --separator: var(--line-soft);
+  --focus: var(--model);
+  --danger: #8b3a2f;
+  --success: var(--model);
+  --warning: #8a6a2f;
+  --field-radius: 0.1875rem;
 }

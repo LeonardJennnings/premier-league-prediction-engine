@@ -1,3 +1,6 @@
+/* Version C — Tailwind + HeroUI themed to paper / pitch green */
+@import "tailwindcss";
+@import "@heroui/styles";
 @import "./tokens.css";
 
 * {
@@ -44,7 +47,7 @@ a:focus-visible {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 1px 0 rgba(22, 22, 22, 0.04);
+  box-shadow: var(--shadow-sheet);
   padding: 28px 28px 36px;
 }
 
@@ -99,4 +102,21 @@ h2.section {
 .nums {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
+}
+
+/* HeroUI density — instrument panel, not SaaS marketing chrome */
+.button,
+[data-slot="button"] {
+  border-radius: var(--radius) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -13,8 +13,6 @@ import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
 import { SAMPLE_SETTLED } from "../lib/sample";
 import {
   buildWaffle,
-  formatBrier,
-  formatLogLoss,
   homeOutcomeBuckets,
   properScores,
 } from "../lib/metrics";
@@ -137,17 +135,19 @@ const llLabel = usingSamplePeeks
       <div class="counted">
         <CountedStat
           client:load
-          value={String(waffle.hits)}
+          value={waffle.hits}
           label={`hits / ${waffle.total} settled`}
         />
         <CountedStat
           client:load
-          value={formatBrier(scores.meanBrier)}
+          value={scores.meanBrier}
+          decimals={3}
           label={brierLabel}
         />
         <CountedStat
           client:load
-          value={formatLogLoss(scores.meanLogLoss)}
+          value={scores.meanLogLoss}
+          decimals={3}
           label={llLabel}
         />
       </div>

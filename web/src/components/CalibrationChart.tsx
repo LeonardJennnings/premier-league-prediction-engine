@@ -1,6 +1,7 @@
 /**
  * Calibration / reliability curve for home-win probability.
  * Diagonal = perfect calibration. Points from settled outcome buckets.
+ * Version C: monochrome report chrome, hairline axes, pitch-green series.
  */
 
 export type CalibrationPointProp = {

@@ -1,18 +1,55 @@
+"use client";
+
 /**
- * Counted summary number shell.
- * TODO(Designer): wire Motion `whileInView` count-up (~0.6–1.2s ease-out);
- * respect prefers-reduced-motion (show final value immediately).
+ * Version C counted peek metric — Motion scroll count-up.
+ * Ease-out ~0.9s once in view; prefers-reduced-motion → final value immediately.
  */
 
+import { animate, useInView, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+
 type Props = {
-  value: string;
+  value: number | null;
   label: string;
+  decimals?: number;
 };
 
-export default function CountedStat({ value, label }: Props) {
+export default function CountedStat({ value, label, decimals = 0 }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.6 });
+  const reduceMotion = useReducedMotion();
+  const [display, setDisplay] = useState(() =>
+    value == null || reduceMotion ? value : 0,
+  );
+
+  useEffect(() => {
+    if (!inView) return;
+    if (value == null) {
+      setDisplay(null);
+      return;
+    }
+    if (reduceMotion) {
+      setDisplay(value);
+      return;
+    }
+    const controls = animate(0, value, {
+      duration: 0.9,
+      ease: "easeOut",
+      onUpdate: (v) => setDisplay(v),
+    });
+    return () => controls.stop();
+  }, [inView, reduceMotion, value]);
+
+  const formatted =
+    display == null
+      ? "—"
+      : decimals > 0
+        ? display.toFixed(decimals)
+        : String(Math.round(display));
+
   return (
-    <div className="stat">
-      <strong className="nums">{value}</strong>
+    <div className="stat" ref={ref}>
+      <strong className="nums">{formatted}</strong>
       <span>{label}</span>
       <style>{`
         .stat strong {

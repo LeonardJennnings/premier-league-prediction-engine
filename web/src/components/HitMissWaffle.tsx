@@ -1,6 +1,7 @@
 /**
  * Hit / miss waffle — one cell per settled match.
  * Hit = model's top 1X2 matched the result. Labels required (not colour-only).
+ * Version C peek chrome.
  */
 
 export type WaffleCellProp = boolean | { hit: boolean; title?: string };
