@@ -38,6 +38,43 @@ def test_implied_odds_missing_columns_leaves_frame():
     assert list(out.columns) == ["home_team"]
 
 
+def test_implied_over_under_25_devig_when_both_present():
+    df = pd.DataFrame(
+        [
+            {
+                "over_25_odds_close": 1.80,
+                "under_25_odds_close": 2.10,
+            }
+        ]
+    )
+    out = add_implied_odds(df)
+
+    total = out.loc[0, "implied_over_25"] + out.loc[0, "implied_under_25"]
+    assert abs(total - 1.0) < 1e-9
+    # Lower over odds should map to the higher de-vig probability
+    assert out.loc[0, "implied_over_25"] > out.loc[0, "implied_under_25"]
+    raw_over = 1 / 1.80
+    raw_under = 1 / 2.10
+    expected_over = raw_over / (raw_over + raw_under)
+    assert abs(out.loc[0, "implied_over_25"] - expected_over) < 1e-12
+
+
+def test_implied_over_under_25_missing_columns_leaves_frame():
+    df = pd.DataFrame([{"home_odds_close": 2.0, "draw_odds_close": 4.0, "away_odds_close": 4.0}])
+    out = add_implied_odds(df)
+    assert "implied_over_25" not in out.columns
+    assert "implied_under_25" not in out.columns
+    assert "implied_home" in out.columns
+
+
+def test_implied_over_under_25_requires_both_columns():
+    df = pd.DataFrame([{"over_25_odds_close": 1.80}])
+    out = add_implied_odds(df)
+    assert "implied_over_25" not in out.columns
+    assert "implied_under_25" not in out.columns
+    assert list(out.columns) == ["over_25_odds_close"]
+
+
 def test_assert_history_before_cutoff_passes_on_past_only():
     history = pd.DataFrame(
         {

@@ -11,6 +11,8 @@
 # home_odds_close  - closing decimal odds for home win (if present)
 # draw_odds_close  - closing decimal odds for draw (if present)
 # away_odds_close  - closing decimal odds for away win (if present)
+# over_25_odds_close  - over 2.5 goals odds (Bet365, else market average)
+# under_25_odds_close - under 2.5 goals odds (Bet365, else market average)
 
 from pathlib import Path
 from src.config import DATA_PROCESSED, SEASON_CODES, raw_path
@@ -23,6 +25,14 @@ def load_raw(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, encoding="utf-8-sig")
 
 
+def _first_present(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    """Return the first column name that exists on df, else None."""
+    for name in candidates:
+        if name in df.columns:
+            return name
+    return None
+
+
 def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
     """Turn one raw season table into the cleaned schema."""
     # Prefer Bet365 closing odds; skip them if a season doesn't have them.
@@ -31,6 +41,15 @@ def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
         "B365CD": "draw_odds_close",
         "B365CA": "away_odds_close",
     }
+    # Over/under 2.5: Bet365 first, then the market average. Older seasons
+    # without either column are left without the cleaned O/U fields.
+    for target, candidates in (
+        ("over_25_odds_close", ["B365>2.5", "Avg>2.5"]),
+        ("under_25_odds_close", ["B365<2.5", "Avg<2.5"]),
+    ):
+        raw = _first_present(df, candidates)
+        if raw is not None:
+            odds_map[raw] = target
     keep = ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]
     keep += [c for c in odds_map if c in df.columns]
 
@@ -66,6 +85,8 @@ def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
         "home_odds_close",
         "draw_odds_close",
         "away_odds_close",
+        "over_25_odds_close",
+        "under_25_odds_close",
     ]
     cols = [c for c in cols if c in out.columns]
     return out.loc[:, cols].sort_values("date").reset_index(drop=True)
