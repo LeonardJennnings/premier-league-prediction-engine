@@ -116,7 +116,7 @@ python -m src.evaluate --mode season
 python -m src.evaluate --mode walkforward
 ```
 
-Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. Walk-forward scores Dixon–Coles (raw and temperature-calibrated 1X2), Elo, independent Poisson, and over/under 2.5 where book columns exist. See [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) and `results/EVAL_README.md`.
+Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. Walk-forward scores Dixon–Coles (raw and temperature-calibrated 1X2), Elo, independent Poisson, and book over/under 2.5 when those columns exist. Model O/U probabilities are produced from the scoreline grid but are not a published walk-forward summary line. See [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) and `results/EVAL_README.md`.
 
 ## Results
 
@@ -128,10 +128,12 @@ Fixed backtest (season gate): train on seasons `2223`–`2425` (1,140 matches), 
 |-------|----------|-------|----------|
 | Naive frequencies | 1.085 | 0.219 | 42.6% |
 | Poisson | 1.041 | 0.209 | 45.0% |
+| Dixon–Coles | 1.033 | 0.207 | 47.1% |
+| Elo | 1.042 | 0.208 | 46.6% |
 | Sklearn baseline | 1.016 | 0.204 | 49.5% |
 | Bookmaker implied | 1.013 | 0.203 | 49.7% |
 
-**Reading:** both models beat a naive “always use historical H/D/A rates” baseline. The sklearn baseline lands very close to the bookmaker row; the Poisson goals model improves on naive but sits a little behind the market. That is an honest engineering result — matching closing odds is hard, and a dramatic unexplained win would be more suspicious than useful. Full numbers live in `results/eval_results.csv`.
+**Reading:** every model beats a naive “always use historical H/D/A rates” baseline. Dixon–Coles improves a little on independent Poisson; Elo sits in the same band as Poisson. The sklearn baseline lands very close to the bookmaker row. That is an honest engineering result — matching closing odds is hard, and a dramatic unexplained win would be more suspicious than useful. Full numbers live in `results/eval_results.csv`.
 
 ## Dashboard
 

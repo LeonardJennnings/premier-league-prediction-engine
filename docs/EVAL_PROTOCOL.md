@@ -60,11 +60,13 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Dixon–Coles (calibrated) | Temperature-scaled 1X2; walk-forward only, after a prior-fold warm-start |
 | Elo | Rating comparator (1X2 only) |
 | Sklearn baseline | Logistic regression on pre-match features available at train time |
-| Bookmaker implied | De-vigged closing 1X2; over/under 2.5 when closing totals columns exist |
+| Bookmaker implied | De-vigged closing 1X2. A separate `bookmaker_over_25` binary line is scored when closing totals columns exist |
 
-**Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid. There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
+**Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid (and the `predict_matches` helper). There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
 
-**Over/under book rule.** When `implied_over_25` is present, walk-forward reports a `bookmaker_over_25` line using binary log loss, Brier, and accuracy against the over-2.5 result. Those figures are not 1X2 scores. Missing over/under odds drop a row from the book comparison only; model totals are still scored against results.
+**Over/under scoring.** Model O/U probabilities are produced from the grid and stored on Dixon–Coles prediction frames (`p_over_25`, `p_under_25`). They are not written as a walk-forward summary line and are not a published metrics row. When `implied_over_25` is present, walk-forward reports a `bookmaker_over_25` line using binary log loss, Brier, and accuracy against the over-2.5 result. Missing over/under odds drop a row from that book comparison only.
+
+**Do not rank binary O/U against 1X2.** `bookmaker_over_25` log loss is a two-class score. 1X2 log loss is a three-class score. Those numbers are not comparable; do not rank them on the same table.
 
 **Time decay (ξ).** Dixon–Coles match weights are \(e^{-\xi t}\) with \(t\) in days. ξ is a fixed config constant (`DIXON_COLES_XI`, about a one-year half-life). It is not jointly estimated with attack, defence, home advantage, or ρ.
 
