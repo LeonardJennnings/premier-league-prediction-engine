@@ -1,0 +1,185 @@
+/* Shared match slate chrome — used by Astro MatchRow and LiveWeekend island */
+
+.match-slate .match {
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.match-slate .match:last-child {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.match-slate .fixture {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.match-slate .fixture h3 {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.match-slate .kick {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+
+.match-slate .strips {
+  display: grid;
+  gap: 6px;
+}
+
+.match-slate .secondary {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.match-slate .settled {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+.match-slate .stamp {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  border-radius: 2px;
+  color: var(--ink-soft);
+}
+
+.match-slate .strip-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.match-slate .strip-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.match-slate .strip-label.model {
+  color: var(--model);
+}
+
+.match-slate .bar {
+  display: flex;
+  height: 18px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--paper-2);
+}
+
+.match-slate .bar.model-bar {
+  outline: 1px solid color-mix(in srgb, var(--model) 35%, transparent);
+}
+
+.match-slate .bar.empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.match-slate .empty-copy {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.match-slate .seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  color: #f7f5f0;
+  white-space: nowrap;
+}
+
+.match-slate .seg.home {
+  background: var(--home-fill);
+}
+
+.match-slate .seg.draw {
+  background: var(--draw-fill);
+  color: var(--ink);
+}
+
+.match-slate .seg.away {
+  background: var(--away-fill);
+}
+
+.match-slate .model-bar .seg.home {
+  background: var(--model);
+}
+
+.match-slate .model-bar .seg.draw {
+  background: color-mix(in srgb, var(--model) 45%, #c8d9cf);
+  color: var(--ink);
+}
+
+.match-slate .model-bar .seg.away {
+  background: color-mix(in srgb, var(--model) 70%, #1a1a18);
+}
+
+.match-slate .book-bar .seg.home {
+  background: var(--book-home);
+}
+
+.match-slate .book-bar .seg.draw {
+  background: var(--book-draw);
+  color: var(--ink);
+}
+
+.match-slate .book-bar .seg.away {
+  background: var(--book-away);
+}
+
+.match-slate .hd-a {
+  font-size: 0.62rem;
+  color: var(--ink-soft);
+  min-width: 7.5em;
+  text-align: right;
+}
+
+.match-slate .meta-line {
+  margin: -6px 0 12px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.match-slate .meta-line code {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.match-slate .refresh-note {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 640px) {
+  .match-slate .strip-row {
+    grid-template-columns: 44px 1fr;
+  }
+  .match-slate .hd-a {
+    display: none;
+  }
+}

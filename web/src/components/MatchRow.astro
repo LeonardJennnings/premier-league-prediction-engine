@@ -1,0 +1,118 @@
+---
+import type { MatchPrediction } from "../lib/types";
+import { formatKickoff, resultLabel, secondaryMarketsLine } from "../lib/format";
+import ProbabilityStrip from "./ProbabilityStrip.astro";
+
+interface Props {
+  match: MatchPrediction;
+  settled?: boolean;
+}
+
+const { match, settled = false } = Astro.props;
+const secondary = secondaryMarketsLine(match);
+---
+
+<article class="match">
+  <div class="fixture">
+    <h3>{match.home_team} vs {match.away_team}</h3>
+    <span class="kick nums">{formatKickoff(match.kickoff_utc)}</span>
+  </div>
+
+  <div class="strips">
+    <ProbabilityStrip
+      kind="model"
+      home={match.p_home}
+      draw={match.p_draw}
+      away={match.p_away}
+    />
+    <ProbabilityStrip
+      kind="book"
+      home={match.book_p_home}
+      draw={match.book_p_draw}
+      away={match.book_p_away}
+    />
+  </div>
+
+  <p class="secondary nums">{secondary}</p>
+
+  {
+    settled && (
+      <p class="settled">
+        <span class="stamp">Settled</span>
+        {
+          match.home_goals != null && match.away_goals != null ? (
+            <>
+              {" "}
+              {match.home_goals}–{match.away_goals}
+              {" / "}
+              {resultLabel(match.result)}
+            </>
+          ) : (
+            " Result pending fields"
+          )
+        }
+      </p>
+    )
+  }
+</article>
+
+<style>
+  .match {
+    padding: 14px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .match:last-child {
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .fixture {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .fixture h3 {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .kick {
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+
+  .strips {
+    display: grid;
+    gap: 6px;
+  }
+
+  .secondary {
+    margin: 8px 0 0;
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+  }
+
+  .settled {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+    color: var(--ink);
+  }
+
+  .stamp {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: 1px solid var(--line);
+    padding: 2px 6px;
+    border-radius: 2px;
+    color: var(--ink-soft);
+  }
+</style>

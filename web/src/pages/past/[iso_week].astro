@@ -1,0 +1,78 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import MatchRow from "../../components/MatchRow.astro";
+import { fetchWeek, fetchWeeks, getApiBase } from "../../lib/api";
+
+export async function getStaticPaths() {
+  const weeksResult = await fetchWeeks();
+  if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
+    // Placeholder path so `astro build` succeeds without a live API.
+    return [{ params: { iso_week: "2026-W46" } }];
+  }
+  return weeksResult.data.weeks.map((w) => ({
+    params: { iso_week: w.iso_week },
+  }));
+}
+
+const { iso_week } = Astro.params;
+const apiBase = getApiBase();
+const result = await fetchWeek(iso_week!);
+
+const ok = result.ok;
+const matches = ok ? result.data.matches : [];
+const modelVersion = ok ? result.data.model_version : "—";
+const detail = !ok ? result.detail : null;
+---
+
+<BaseLayout
+  title={`${iso_week} — Past scorecard`}
+  description={`Settled matches for ${iso_week}.`}
+  active="past"
+>
+  <p class="lead">
+    Lorem ipsum dolor sit amet for week <strong class="nums">{iso_week}</strong>.
+    <span class="lorem">Misses keep the same weight as hits.</span>
+  </p>
+
+  <p class="back"><a href="/past">← All settled weeks</a></p>
+
+  {
+    !ok && (
+      <p class="notice" role="status">
+        <strong>Note.</strong> Could not load {iso_week} from {apiBase}: {detail}
+      </p>
+    )
+  }
+
+  {
+    ok && (
+      <section aria-labelledby="week-heading">
+        <h2 class="section" id="week-heading">{iso_week}</h2>
+        <p class="meta-line nums">
+          Model <code>{modelVersion}</code>
+        </p>
+        {matches.length === 0 ? (
+          <p class="notice">No settled matches in this week.</p>
+        ) : (
+          matches.map((m) => <MatchRow match={m} settled />)
+        )}
+      </section>
+    )
+  }
+</BaseLayout>
+
+<style>
+  .back {
+    margin: -12px 0 20px;
+    font-size: 0.85rem;
+  }
+  .meta-line {
+    margin: -6px 0 12px;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+  .meta-line code {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+</style>

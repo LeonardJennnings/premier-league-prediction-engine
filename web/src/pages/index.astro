@@ -1,0 +1,58 @@
+---
+/**
+ * Weekend slate — Version C order:
+ * brand + short lorem → THIS WEEKEND → (peeks live on Past / Method pages) → disclaimer in layout.
+ * Build-time fetch + client refresh via LiveWeekend so dist is not forever sample-only.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LiveWeekend from "../components/LiveWeekend";
+import { fetchUpcoming, getApiBase } from "../lib/api";
+import { SAMPLE_UPCOMING } from "../lib/sample";
+
+const apiBase = getApiBase();
+const result = await fetchUpcoming();
+
+const usingSample = !result.ok || result.data.matches.length === 0;
+const matches = usingSample
+  ? SAMPLE_UPCOMING
+  : result.data.matches;
+const modelVersion = usingSample
+  ? "sample-local"
+  : result.data.model_version;
+
+let notice: string | null = null;
+if (!result.ok) {
+  notice =
+    result.status === 0
+      ? `API unreachable at ${apiBase}. Showing sample slate.`
+      : `API ${result.status}: ${result.detail}. Showing sample slate.`;
+} else if (result.data.matches.length === 0) {
+  notice = "No upcoming matches published yet. Showing sample slate.";
+}
+---
+
+<BaseLayout title="This weekend — Premier League Prediction Engine" active="weekend">
+  <p class="lead">
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.
+    <span class="lorem"
+      >Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.</span
+    >
+  </p>
+
+  <section class="slate" aria-labelledby="weekend-heading">
+    <h2 class="section" id="weekend-heading">This weekend</h2>
+    <LiveWeekend
+      client:load
+      apiBase={apiBase}
+      initialMatches={matches}
+      initialModelVersion={modelVersion}
+      initialNotice={notice}
+    />
+  </section>
+</BaseLayout>
+
+<style>
+  .slate {
+    margin-bottom: 24px;
+  }
+</style>

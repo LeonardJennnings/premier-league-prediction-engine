@@ -1,0 +1,163 @@
+---
+/**
+ * Past scorecard index — immutable weeks from Epic 4.
+ * Version C peeks: counted proper scores + hit/miss waffle + calibration / buckets.
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import MatchRow from "../components/MatchRow.astro";
+import LivePastPeeks from "../components/LivePastPeeks";
+import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
+import { SAMPLE_SETTLED } from "../lib/sample";
+import type { MatchPrediction } from "../lib/types";
+
+const apiBase = getApiBase();
+const weeksResult = await fetchWeeks();
+
+let notice: string | null = null;
+let modelVersion = "sample-local";
+let weeks: { iso_week: string; match_count: number }[] = [];
+let detailMatches: MatchPrediction[] = [];
+let peekMatches: MatchPrediction[] = [];
+let selectedWeek: string | null = null;
+let usingSamplePeeks = false;
+
+if (!weeksResult.ok) {
+  notice =
+    weeksResult.status === 0
+      ? `API unreachable at ${apiBase}. Showing sample peeks.`
+      : `API ${weeksResult.status}: ${weeksResult.detail}. Showing sample peeks.`;
+  detailMatches = SAMPLE_SETTLED.slice(0, 4);
+  peekMatches = SAMPLE_SETTLED;
+  selectedWeek = "sample";
+  usingSamplePeeks = true;
+} else {
+  modelVersion = weeksResult.data.model_version;
+  weeks = weeksResult.data.weeks;
+  if (weeks.length === 0) {
+    notice = "No settled weeks yet. Showing sample peeks.";
+    detailMatches = SAMPLE_SETTLED.slice(0, 4);
+    peekMatches = SAMPLE_SETTLED;
+    selectedWeek = "sample";
+    usingSamplePeeks = true;
+  } else {
+    selectedWeek = weeks[0].iso_week;
+    const weekBatches = await Promise.all(
+      weeks.map((w) => fetchWeek(w.iso_week)),
+    );
+    const allSettled: MatchPrediction[] = [];
+    for (const wr of weekBatches) {
+      if (wr.ok) allSettled.push(...wr.data.matches);
+    }
+    peekMatches = allSettled;
+    const latest = weekBatches[0];
+    if (latest && latest.ok) {
+      detailMatches = latest.data.matches;
+    } else {
+      notice = `Could not load ${selectedWeek}: ${latest && !latest.ok ? latest.detail : "unknown error"}`;
+    }
+  }
+}
+
+---
+
+<BaseLayout
+  title="Past scorecard — Premier League Prediction Engine"
+  description="Settled Premier League weekends — misses stay visible."
+  active="past"
+>
+  <p class="lead">
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer at nisl vitae arcu tincidunt.
+    <span class="lorem">Past weekends stay as published. Misses stay visible.</span>
+  </p>
+
+  {notice && (
+    <p class="notice" role="status">
+      <strong>Note.</strong> {notice}
+    </p>
+  )}
+
+  <section aria-labelledby="weeks-heading">
+    <h2 class="section" id="weeks-heading">Settled weeks</h2>
+    {
+      weeks.length > 0 ? (
+        <ul class="week-list">
+          {weeks.map((w) => (
+            <li>
+              <a href={`/past/${w.iso_week}`}>
+                {w.iso_week}
+                <span class="nums"> — {w.match_count} matches</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">No ISO weeks from the API yet.</p>
+      )
+    }
+  </section>
+
+  {
+    selectedWeek && (
+      <section class="slate" aria-labelledby="detail-heading">
+        <h2 class="section" id="detail-heading">
+          {selectedWeek === "sample" ? "Sample week" : `Latest — ${selectedWeek}`}
+        </h2>
+        <p class="meta-line nums">
+          Model <code>{modelVersion}</code>
+        </p>
+        {detailMatches.map((m) => (
+          <MatchRow match={m} settled />
+        ))}
+      </section>
+    )
+  }
+
+  <LivePastPeeks
+    client:load
+    apiBase={apiBase}
+    initialPeekMatches={peekMatches}
+    usingSamplePeeks={usingSamplePeeks}
+  />
+</BaseLayout>
+
+<style>
+  .week-list {
+    list-style: none;
+    margin: 0 0 28px;
+    padding: 0;
+  }
+  .week-list li {
+    border-top: 1px solid var(--line-soft);
+    padding: 10px 0;
+  }
+  .week-list li:last-child {
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .week-list a {
+    display: block;
+    font-weight: 600;
+    border-bottom: none;
+    min-height: 44px;
+    line-height: 44px;
+  }
+  .week-list span {
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+  .empty {
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
+  .meta-line {
+    margin: -6px 0 12px;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+  .meta-line code {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+  .slate {
+    margin-bottom: 28px;
+  }
+</style>

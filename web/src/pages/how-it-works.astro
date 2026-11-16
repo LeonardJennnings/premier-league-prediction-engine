@@ -1,0 +1,176 @@
+---
+/**
+ * How-it-works — quiet slide sections (Theme 4).
+ * Copy uses lorem for placeholders; method outline is plain language.
+ * Counted peeks bind settled-store summaries (same honesty as Past).
+ */
+import BaseLayout from "../layouts/BaseLayout.astro";
+import MethodPeeks from "../components/MethodPeeks";
+import MethodDisclosure from "../components/MethodDisclosure";
+import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
+import { SAMPLE_SETTLED } from "../lib/sample";
+import type { MatchPrediction } from "../lib/types";
+
+const apiBase = getApiBase();
+const weeksResult = await fetchWeeks();
+
+let peekMatches: MatchPrediction[] = [];
+let usingSample = false;
+
+if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
+  peekMatches = SAMPLE_SETTLED;
+  usingSample = true;
+} else {
+  const weekBatches = await Promise.all(
+    weeksResult.data.weeks.map((w) => fetchWeek(w.iso_week)),
+  );
+  for (const wr of weekBatches) {
+    if (wr.ok) peekMatches.push(...wr.data.matches);
+  }
+  if (peekMatches.length === 0) {
+    peekMatches = SAMPLE_SETTLED;
+    usingSample = true;
+  }
+}
+---
+
+<BaseLayout
+  title="How it works — Premier League Prediction Engine"
+  description="Short method notes: data, goals model, walk-forward, calibration, model vs book."
+  active="how"
+>
+  <p class="lead">
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor.
+    <span class="lorem">Ut enim ad minim veniam — method notes, not tips.</span>
+  </p>
+
+  <MethodPeeks
+    client:load
+    apiBase={apiBase}
+    initialMatches={peekMatches}
+    usingSample={usingSample}
+  />
+
+  <section class="slide" aria-labelledby="s1">
+    <h2 class="section" id="s1">What you are looking at</h2>
+    <p>
+      Weekend probabilities for Premier League matches — home, draw, and away — with the book as a peer column.
+      This is a public lab ledger, not a tip sheet.
+    </p>
+  </section>
+
+  <section class="slide" aria-labelledby="s2">
+    <h2 class="section" id="s2">Data</h2>
+    <p>
+      Historical results and closing odds from public sources (football-data.co.uk history; football-data.org fixtures).
+      Lorem ipsum dolor sit amet for any temporary gaps in the pipeline notes.
+    </p>
+  </section>
+
+  <section class="slide" aria-labelledby="s3">
+    <h2 class="section" id="s3">Goals model → scoreline grid</h2>
+    <p>
+      A goals model produces a scoreline grid. From that grid we derive 1X2, both teams to score (BTTS), and over/under 2.5.
+      Secondary markets stay under each match — not a second product.
+    </p>
+  </section>
+
+  <section class="slide" aria-labelledby="s4">
+    <h2 class="section" id="s4">Walk-forward</h2>
+    <p>
+      Walk-forward means we train only on what was knowable before each week, then score the next week cold.
+      Folds stay research truth; the public site shows calendar/weekend views of stored rows.
+    </p>
+  </section>
+
+  <section class="slide" aria-labelledby="s5">
+    <h2 class="section" id="s5">Calibration</h2>
+    <p>
+      When we say about 40%, we aim for that outcome to happen about that often over many matches.
+      Reliability curves and outcome-bucket tables teach that — not a single “accuracy” tile.
+    </p>
+  </section>
+
+  <section class="slide" aria-labelledby="s6">
+    <h2 class="section" id="s6">Model vs book</h2>
+    <p>
+      Book percentages are de-vigged implied probabilities so columns share the same units.
+      De-vig means removing the bookmaker margin so home / draw / away sum to 100% for fair comparison.
+      Book O/U 2.5 shows beside model O2.5 when present; book BTTS stays omitted until a source exists.
+    </p>
+  </section>
+
+  <section class="slide" aria-labelledby="s7">
+    <h2 class="section" id="s7">What we do not claim</h2>
+    <ul>
+      <li>No sure things, bankers, or ACCA theatre.</li>
+      <li>No affiliate or “bet now” CTAs on this site.</li>
+      <li>Beating the closing book is not required to ship.</li>
+      <li>Entertainment and probability literacy only — not financial advice.</li>
+    </ul>
+  </section>
+
+  <section class="slide diagram" aria-labelledby="s8">
+    <h2 class="section" id="s8">One diagram</h2>
+    <svg viewBox="0 0 480 80" role="img" aria-label="Data to publish flow">
+      <text x="8" y="28" class="node">Data</text>
+      <path d="M48 24 H90" />
+      <text x="96" y="28" class="node">Goals model</text>
+      <path d="M188 24 H230" />
+      <text x="236" y="28" class="node">Grid → markets</text>
+      <path d="M348 24 H390" />
+      <text x="396" y="28" class="node">Publish once</text>
+      <text x="8" y="62" class="sub">API serves stored rows. Browser never fits the model.</text>
+    </svg>
+  </section>
+
+  <MethodDisclosure client:load />
+</BaseLayout>
+
+<style>
+  .slide {
+    margin-bottom: 22px;
+    max-width: 38em;
+  }
+  .slide p,
+  .slide li {
+    margin: 0 0 8px;
+    font-size: 0.92rem;
+    color: var(--ink);
+  }
+  .slide ul {
+    margin: 0;
+    padding-left: 1.15em;
+  }
+  .diagram svg {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    display: block;
+    color: var(--ink);
+  }
+  .diagram path {
+    stroke: var(--line);
+    stroke-width: 1.5;
+    fill: none;
+  }
+  .diagram .node {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    fill: var(--ink);
+  }
+  .diagram .sub {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    fill: var(--ink-soft);
+  }
+  :global(.method-peeks) {
+    margin-bottom: 28px;
+  }
+  :global(.method-peeks .counted) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+</style>

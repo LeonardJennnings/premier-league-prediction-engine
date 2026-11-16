@@ -28,3 +28,10 @@ Thumbs.db
 # Streamlit agent skills (local symlinks; not part of this project)
 .agents/
 .claude/
+
+# Epic 5 Astro site
+web/node_modules/
+web/dist/
+web/.astro/
+web/.env
+web/.env.production

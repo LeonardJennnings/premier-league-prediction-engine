@@ -34,10 +34,13 @@ FOOTBALL_DATA_ORG_TOKEN = os.getenv("FOOTBALL_DATA_ORG_TOKEN", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 PREDICTIONS_DB = DATA_PROCESSED / "predictions.sqlite"
-# Comma-separated browser origins for the read-only API (local Next.js by default).
+# Comma-separated browser origins for the read-only API (Astro web/ + optional Next).
 API_CORS_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("API_CORS_ORIGINS", "http://localhost:3000").split(",")
+    for origin in os.getenv(
+        "API_CORS_ORIGINS",
+        "http://localhost:4321,http://127.0.0.1:4321,http://localhost:3000",
+    ).split(",")
     if origin.strip()
 ]
 MODELS_DIR = ROOT / "models"

@@ -1,0 +1,123 @@
+/* Version C — Tailwind + HeroUI themed to paper / pitch green */
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "./tokens.css";
+@import "./match-slate.css";
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 90% 50% at 50% -10%, #ddd8ce 0%, transparent 55%),
+    linear-gradient(180deg, #e4e0d6 0%, var(--paper) 28%, #ebe8e1 100%);
+  line-height: 1.45;
+}
+
+a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+
+a:hover {
+  border-bottom-color: var(--ink);
+}
+
+a:focus-visible {
+  outline: 2px solid var(--model);
+  outline-offset: 2px;
+}
+
+.chrome {
+  max-width: calc(var(--max) + 48px);
+  margin: 28px auto 64px;
+  padding: 0 16px;
+}
+
+.sheet {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sheet);
+  padding: 28px 28px 36px;
+}
+
+@media (max-width: 560px) {
+  .chrome {
+    margin: 12px auto 40px;
+    padding: 0 10px;
+  }
+  .sheet {
+    padding: 20px 16px 28px;
+  }
+}
+
+.lead {
+  font-size: 1.02rem;
+  color: var(--ink);
+  max-width: 38em;
+  margin: 0 0 28px;
+}
+
+.lead .lorem {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin-top: 8px;
+}
+
+h2.section {
+  margin: 0 0 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.notice {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.notice strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nums {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+/* HeroUI density — instrument panel, not SaaS marketing chrome */
+.button,
+[data-slot="button"] {
+  border-radius: var(--radius) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
