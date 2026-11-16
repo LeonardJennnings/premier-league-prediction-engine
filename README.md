@@ -67,8 +67,10 @@ More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SC
 ## Project layout
 
 ```text
-app/           Streamlit dashboard
+app/           Streamlit dashboard (lab)
+web/           Public Astro site (weekend / past / how-it-works)
 src/           Library code (download, clean, features, models, evaluate, jobs, pipeline, api)
+src/api/       Thin read-only Predictions API (Epic 4)
 src/models/    Dixon–Coles, markets, Poisson, Elo, baseline, predict helper
 src/eval/      Walk-forward folds, calibration
 src/jobs/      Fit, publish, settle, precompute
@@ -113,7 +115,7 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is required for `publish`, `settle`, and `precompute`. Leave it empty if you only run the historical pipeline. `API_CORS_ORIGINS` defaults to `http://localhost:3000` for the Predictions API.
+`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is required for `publish`, `settle`, and `precompute`. Leave it empty if you only run the historical pipeline. `API_CORS_ORIGINS` defaults to Astro (`http://localhost:4321`) plus `http://localhost:3000` for the Predictions API.
 
 ## Pipeline
 
@@ -154,7 +156,17 @@ uvicorn src.api.app:app --reload
 
 Open http://127.0.0.1:8000/docs for OpenAPI. Endpoints: `GET /health`, `GET /v1/predictions/upcoming`, `GET /v1/predictions/weeks`, `GET /v1/predictions/weeks/{iso_week}`, `GET /v1/models/latest`, `GET /v1/models/{model_version}`. Optional `?model_version=` pin. Requires a populated `data/processed/predictions.sqlite` from `fit` / `publish` / `settle`.
 
-CORS allow-list is `API_CORS_ORIGINS` (comma-separated; default `http://localhost:3000`).
+CORS allow-list is `API_CORS_ORIGINS` (comma-separated; default includes Astro on `:4321` and `:3000`).
+
+## Public site (Epic 5)
+
+Static Astro app under [`web/`](web/) — weekend slate, past scorecard, how-it-works. See [`web/README.md`](web/README.md).
+
+```bash
+cd web && npm install && npm run dev
+```
+
+Set `PUBLIC_PREDICTIONS_API_BASE` (default `http://127.0.0.1:8000`) in `web/.env`.
 
 ## Evaluation
 

@@ -1,0 +1,152 @@
+---
+import { pct } from "../lib/format";
+
+interface Props {
+  kind: "model" | "book";
+  home: number | null;
+  draw: number | null;
+  away: number | null;
+}
+
+const { kind, home, draw, away } = Astro.props;
+const missing = home == null || draw == null || away == null;
+const h = missing ? 0 : Math.round(home! * 100);
+const d = missing ? 0 : Math.round(draw! * 100);
+const a = missing ? 0 : Math.round(away! * 100);
+const label = kind === "model" ? "Model" : "Book";
+const aria = missing
+  ? `${label} probabilities unavailable`
+  : `${label} ${h} home, ${d} draw, ${a} away`;
+---
+
+<div class="strip-row">
+  <span class:list={["strip-label", { model: kind === "model" }]}>{label}</span>
+  {
+    missing ? (
+      <div class="bar empty" role="img" aria-label={aria}>
+        <span class="empty-copy">No book line</span>
+      </div>
+    ) : (
+      <div
+        class:list={["bar", kind === "model" ? "model-bar" : "book-bar"]}
+        role="img"
+        aria-label={aria}
+      >
+        <div class="seg home" style={`width:${h}%`}>{h}</div>
+        <div class="seg draw" style={`width:${d}%`}>{d}</div>
+        <div class="seg away" style={`width:${a}%`}>{a}</div>
+      </div>
+    )
+  }
+  <span class="hd-a nums">
+    {
+      missing
+        ? "H — / D — / A —"
+        : `H ${pct(home)} / D ${pct(draw)} / A ${pct(away)}`
+    }
+  </span>
+</div>
+
+<style>
+  .strip-row {
+    display: grid;
+    grid-template-columns: 52px 1fr auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .strip-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .strip-label.model {
+    color: var(--model);
+  }
+
+  .bar {
+    display: flex;
+    height: 18px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--paper-2);
+  }
+
+  .bar.model-bar {
+    outline: 1px solid color-mix(in srgb, var(--model) 35%, transparent);
+  }
+
+  .bar.empty {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-copy {
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+  }
+
+  .seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    color: #f7f5f0;
+    white-space: nowrap;
+  }
+
+  .seg.home {
+    background: var(--home-fill);
+  }
+  .seg.draw {
+    background: var(--draw-fill);
+    color: var(--ink);
+  }
+  .seg.away {
+    background: var(--away-fill);
+  }
+
+  .model-bar .seg.home {
+    background: var(--model);
+  }
+  .model-bar .seg.draw {
+    background: color-mix(in srgb, var(--model) 45%, #c8d9cf);
+    color: var(--ink);
+  }
+  .model-bar .seg.away {
+    background: color-mix(in srgb, var(--model) 70%, #1a1a18);
+  }
+
+  .book-bar .seg.home {
+    background: #3a3936;
+  }
+  .book-bar .seg.draw {
+    background: #b8b3a8;
+    color: var(--ink);
+  }
+  .book-bar .seg.away {
+    background: #7a756c;
+  }
+
+  .hd-a {
+    font-size: 0.62rem;
+    color: var(--ink-soft);
+    min-width: 7.5em;
+    text-align: right;
+  }
+
+  @media (max-width: 640px) {
+    .strip-row {
+      grid-template-columns: 44px 1fr;
+    }
+    .hd-a {
+      display: none;
+    }
+  }
+</style>

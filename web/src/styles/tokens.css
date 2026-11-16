@@ -1,0 +1,31 @@
+/**
+ * Structural tokens aligned with Version C preview.
+ * TODO(Designer): own final hex, type scale, radii, and HeroUI theme tokens.
+ * Do not invent a second palette here without coordinating.
+ */
+:root {
+  --paper: #f3f1ec;
+  --paper-2: #ebe7df;
+  --ink: #161616;
+  --ink-soft: #5a5a55;
+  --line: #cfc9bc;
+  --line-soft: #ddd7cb;
+  --model: #1f6b4a;
+  --model-soft: #d7ebe1;
+  --miss: #e8e4db;
+  --hit: #1f6b4a;
+  --home-fill: #2a2a28;
+  --draw-fill: #c4bfb4;
+  --away-fill: #6e6a62;
+  --radius: 3px;
+  --max: 720px;
+  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 28px;
+  --space-7: 36px;
+}
