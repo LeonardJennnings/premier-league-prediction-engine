@@ -1,4 +1,4 @@
-"""Insert-once predictions and settlement that never rewrites probabilities."""
+"""Insert-once probabilities. Later writes may change kickoff, status, and scores only."""
 
 from __future__ import annotations
 
@@ -52,7 +52,18 @@ def get_prediction(
     return dict(row)
 
 
-def insert_prediction(conn: sqlite3.Connection, row: dict) -> bool:
+# Kickoff, lifecycle, and settlement. Never probabilities or book columns.
+_STATE_FIELDS = (
+    "kickoff_utc",
+    "status",
+    "home_goals",
+    "away_goals",
+    "result",
+    "settled_at",
+)
+
+
+def _insert_new(conn: sqlite3.Connection, row: dict) -> bool:
     existing = conn.execute(
         "SELECT 1 FROM predictions WHERE match_id = ? AND model_version = ?",
         (row["match_id"], row["model_version"]),
@@ -65,8 +76,61 @@ def insert_prediction(conn: sqlite3.Connection, row: dict) -> bool:
         f"INSERT INTO predictions ({cols}) VALUES ({placeholders})",
         {name: row[name] for name in INSERT_COLUMNS},
     )
-    conn.commit()
     return True
+
+
+def insert_prediction(conn: sqlite3.Connection, row: dict) -> bool:
+    inserted = _insert_new(conn, row)
+    conn.commit()
+    return inserted
+
+
+def insert_predictions(conn: sqlite3.Connection, rows: list[dict]) -> dict:
+    """Insert many rows and commit once.
+
+    Duplicate keys are skipped. If a row fails mid-batch, the new inserts
+    from this call are rolled back.
+    """
+    inserted = 0
+    skipped = 0
+    try:
+        for row in rows:
+            if _insert_new(conn, row):
+                inserted += 1
+            else:
+                skipped += 1
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"inserted": inserted, "skipped_duplicate": skipped}
+
+
+def update_prediction_state(
+    conn: sqlite3.Connection, match_id: int, model_version: str, **fields
+) -> bool:
+    """Update kickoff, status, or settlement columns for one existing row.
+
+    ``p_*`` and ``book_*`` are refused. Omitted fields are left unchanged.
+    """
+    unknown = set(fields) - set(_STATE_FIELDS)
+    if unknown:
+        listed = ", ".join(sorted(unknown))
+        raise ValueError(
+            "Refusing to update fields outside kickoff, status, and settlement: "
+            f"{listed}"
+        )
+    present = [name for name in _STATE_FIELDS if name in fields]
+    if not present:
+        return False
+    assignments = ", ".join(f"{name} = ?" for name in present)
+    values = [fields[name] for name in present]
+    cur = conn.execute(
+        f"UPDATE predictions SET {assignments} WHERE match_id = ? AND model_version = ?",
+        (*values, match_id, model_version),
+    )
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def settle_prediction(
@@ -78,16 +142,16 @@ def settle_prediction(
     result: str,
 ) -> bool:
     settled_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    cur = conn.execute(
-        """
-        UPDATE predictions
-        SET home_goals = ?, away_goals = ?, result = ?, settled_at = ?, status = 'settled'
-        WHERE match_id = ? AND model_version = ?
-        """,
-        (home_goals, away_goals, result, settled_at, match_id, model_version),
+    return update_prediction_state(
+        conn,
+        match_id,
+        model_version,
+        home_goals=home_goals,
+        away_goals=away_goals,
+        result=result,
+        settled_at=settled_at,
+        status="settled",
     )
-    conn.commit()
-    return cur.rowcount > 0
 
 
 def upsert_model_artefact(

@@ -1,11 +1,12 @@
 """Settlement writes scores only. Published probabilities stay as inserted."""
 
 import json
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
-from src.jobs.settle import main, settle_from_api
+from src.jobs.settle import POSTPONED_LOOKAHEAD_DAYS, main, settle_from_api
 from src.store.predictions import connect, get_prediction, insert_prediction
 from src.store.schema import init_db
 
@@ -142,7 +143,7 @@ def test_settle_from_finished_payload_keeps_probabilities(tmp_path, monkeypatch)
     }
     url = captured["url"]
     assert "competitions/PL/matches" in url
-    assert "status=FINISHED" in url
+    assert "status=" not in url
     assert "dateFrom=2026-11-18" in url
     assert "dateTo=2026-11-23" in url
     assert captured["headers"]["X-Auth-Token"] == "secret-token"
@@ -264,7 +265,7 @@ def test_settle_refetches_same_dates_after_cache_write(tmp_path, monkeypatch):
     monkeypatch.setattr("src.fixtures.client.requests.get", fake_get)
 
     first_counts = settle_from_api(token="secret-token")
-    cache_file = cache_dir / "PL_2026-11-18_2026-11-19_FINISHED.json"
+    cache_file = cache_dir / "PL_2026-11-18_2026-11-19.json"
     assert first_counts["settled"] == 1
     assert captured["calls"] == 1
     assert cache_file.is_file()
@@ -281,7 +282,7 @@ def test_settle_refetches_same_dates_after_cache_write(tmp_path, monkeypatch):
     for url in captured["urls"]:
         assert "dateFrom=2026-11-18" in url
         assert "dateTo=2026-11-19" in url
-        assert "status=FINISHED" in url
+        assert "status=" not in url
 
     conn = connect(db)
     try:
@@ -313,6 +314,195 @@ def test_settle_with_no_unsettled_rows_does_not_fetch(tmp_path, monkeypatch):
         "settled": 0,
         "skipped_unknown": 0,
     }
+
+
+def _listed(match_id, kickoff, status):
+    return {
+        "id": match_id,
+        "utcDate": kickoff,
+        "status": status,
+        "matchday": 12,
+        "homeTeam": {"name": "Arsenal FC"},
+        "awayTeam": {"name": "Chelsea FC"},
+        "score": {"fullTime": {"home": None, "away": None}},
+    }
+
+
+def _sequential_payloads(monkeypatch, payloads: list[dict]) -> dict:
+    captured = {"calls": 0, "urls": []}
+
+    class FakeResponse:
+        def __init__(self, body):
+            self._body = body
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._body
+
+    def fake_get(url, headers=None, timeout=None, **kwargs):
+        captured["calls"] += 1
+        captured["urls"].append(url)
+        return FakeResponse(payloads[captured["calls"] - 1])
+
+    monkeypatch.setattr("src.fixtures.client.requests.get", fake_get)
+    return captured
+
+
+@pytest.mark.parametrize("api_status", ["POSTPONED", "SUSPENDED"])
+def test_settle_postponed_updates_status_and_kickoff(tmp_path, monkeypatch, api_status):
+    db = _patch_db(monkeypatch, tmp_path)
+    conn = connect(db)
+    original = _row(book_p_home=0.41, p_home=0.45)
+    assert insert_prediction(conn, original) is True
+    before = _probs(get_prediction(conn, 1001, "dc-test-1"))
+    conn.close()
+    _patch_payload(
+        monkeypatch,
+        {
+            "matches": [
+                _listed(1001, "2026-11-18T17:30:00Z", api_status),
+                _listed(9999, "2026-11-18T19:00:00Z", api_status),
+            ]
+        },
+    )
+
+    counts = settle_from_api(token="secret-token")
+
+    assert counts["unsettled"] == 1
+    assert counts["settled"] == 0
+    assert counts["skipped_unknown"] == 1
+    conn = connect(db)
+    try:
+        row = get_prediction(conn, 1001, "dc-test-1")
+        unknown = conn.execute(
+            "SELECT COUNT(*) FROM predictions WHERE match_id = 9999"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert row["status"] == "postponed"
+    assert row["kickoff_utc"] == "2026-11-18T17:30:00Z"
+    assert row["home_goals"] is None
+    assert row["result"] is None
+    assert row["book_p_home"] == pytest.approx(0.41)
+    assert _probs(row) == before
+    assert unknown == 0
+
+
+def test_settle_cancelled_updates_status_and_stops_polling(tmp_path, monkeypatch):
+    db = _patch_db(monkeypatch, tmp_path)
+    conn = connect(db)
+    assert insert_prediction(conn, _row(p_home=0.37)) is True
+    conn.close()
+    _patch_payload(
+        monkeypatch,
+        {"matches": [_listed(1001, "2026-11-18T15:00:00Z", "CANCELLED")]},
+    )
+
+    counts = settle_from_api(token="secret-token")
+
+    assert counts["settled"] == 0
+    conn = connect(db)
+    try:
+        row = get_prediction(conn, 1001, "dc-test-1")
+    finally:
+        conn.close()
+    assert row["status"] == "cancelled"
+    assert row["p_home"] == pytest.approx(0.37)
+    assert row["home_goals"] is None
+
+    def boom(*args, **kwargs):
+        raise AssertionError("cancelled rows should not be fetched")
+
+    monkeypatch.setattr("src.fixtures.client.requests.get", boom)
+    assert settle_from_api(token="secret-token") == {
+        "unsettled": 0,
+        "fetched": 0,
+        "settled": 0,
+        "skipped_unknown": 0,
+    }
+
+
+def test_settle_reschedule_after_postpone_updates_kickoff(tmp_path, monkeypatch):
+    db = _patch_db(monkeypatch, tmp_path)
+    conn = connect(db)
+    assert insert_prediction(conn, _row(p_home=0.45, book_p_away=0.22)) is True
+    before_probs = _probs(get_prediction(conn, 1001, "dc-test-1"))
+    conn.close()
+    payloads = [
+        {"matches": [_listed(1001, "2026-11-18T15:00:00Z", "POSTPONED")]},
+        {"matches": [_listed(1001, "2026-12-02T15:00:00Z", "TIMED")]},
+    ]
+    captured = _sequential_payloads(monkeypatch, payloads)
+
+    settle_from_api(token="secret-token")
+    settle_from_api(token="secret-token")
+
+    assert captured["calls"] == 2
+    assert "dateFrom=2026-11-18" in captured["urls"][0]
+    assert "dateTo=2026-11-19" in captured["urls"][0]
+    horizon = date(2026, 11, 18) + timedelta(days=POSTPONED_LOOKAHEAD_DAYS + 1)
+    assert "dateFrom=2026-11-18" in captured["urls"][1]
+    assert f"dateTo={horizon.isoformat()}" in captured["urls"][1]
+    conn = connect(db)
+    try:
+        row = get_prediction(conn, 1001, "dc-test-1")
+    finally:
+        conn.close()
+    assert row["status"] == "scheduled"
+    assert row["kickoff_utc"] == "2026-12-02T15:00:00Z"
+    assert row["book_p_away"] == pytest.approx(0.22)
+    assert _probs(row) == {name: before_probs[name] for name in before_probs}
+
+
+def test_settle_corrects_finished_score_without_touching_probabilities(
+    tmp_path, monkeypatch
+):
+    db = _patch_db(monkeypatch, tmp_path)
+    conn = connect(db)
+    assert insert_prediction(conn, _row(p_home=0.45, book_p_home=0.4)) is True
+    conn.close()
+    payloads = [
+        {"matches": [_finished(1001, "2026-11-18T15:00:00Z", 2, 1, "HOME_TEAM")]},
+        {"matches": [_finished(1001, "2026-11-18T15:00:00Z", 1, 1, "DRAW")]},
+        {"matches": [_finished(1001, "2026-11-18T15:00:00Z", 1, 1, "DRAW")]},
+    ]
+    captured = _sequential_payloads(monkeypatch, payloads)
+
+    first = settle_from_api(token="secret-token")
+    assert first["settled"] == 1
+
+    second = settle_from_api(token="secret-token")
+    conn = connect(db)
+    try:
+        settled_at = get_prediction(conn, 1001, "dc-test-1")["settled_at"]
+    finally:
+        conn.close()
+    third = settle_from_api(token="secret-token")
+
+    assert captured["calls"] == 3
+    assert second == {
+        "unsettled": 0,
+        "fetched": 1,
+        "settled": 1,
+        "skipped_unknown": 0,
+    }
+    assert third["settled"] == 0
+    assert third["unsettled"] == 0
+    conn = connect(db)
+    try:
+        row = get_prediction(conn, 1001, "dc-test-1")
+    finally:
+        conn.close()
+    assert row["status"] == "settled"
+    assert row["home_goals"] == 1
+    assert row["away_goals"] == 1
+    assert row["result"] == "D"
+    assert row["settled_at"] == settled_at
+    assert row["p_home"] == pytest.approx(0.45)
+    assert row["book_p_home"] == pytest.approx(0.4)
+    assert row["home_team"] == "Arsenal"
 
 
 def test_settle_main_logs_counts(monkeypatch, caplog):

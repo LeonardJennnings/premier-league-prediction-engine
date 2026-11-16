@@ -9,12 +9,13 @@ from pathlib import Path
 import pandas as pd
 
 from src.config import MODELS_DIR, PREDICTIONS_DB, PUBLISH_WINDOW_DAYS
+from src.fixtures.books import load_book_index, lookup_book
 from src.fixtures.client import fetch_pl_matches
 from src.fixtures.window import matches_in_publish_window
 from src.logging_setup import setup_logging
 from src.models.artefacts import _resolve_version, load_artefact, teams_in_model
 from src.models.predict import predict_matches
-from src.store.predictions import connect, insert_prediction
+from src.store.predictions import connect, insert_predictions
 from src.store.schema import init_db
 from src.teams.mapping import load_team_name_map, resolve_team_name
 
@@ -37,11 +38,13 @@ def publish_slate(
     now_utc: datetime | None = None,
     token: str | None = None,
 ) -> dict:
-    """Load an artefact, predict the in-window slate, and insert each row once.
+    """Load an artefact, predict the in-window slate, and insert the new rows once.
 
     Every in-window fixture is mapped and checked against the model before any
     insert. An unmapped name or a team missing from attack or defence aborts
-    the batch.
+    the batch. Fixtures are refetched; the on-disk cache is only written.
+    Book columns are filled when the football-data.co.uk fixture list matches.
+    New rows commit in one transaction.
     """
     now = _as_utc(now_utc)
     version = _resolve_version(model_version, Path(MODELS_DIR))
@@ -50,7 +53,14 @@ def publish_slate(
     date_from = now.date()
     # football-data.org dateTo is exclusive, so add one day to include the 10th day.
     date_to = (now + timedelta(days=PUBLISH_WINDOW_DAYS)).date() + timedelta(days=1)
-    fetched = fetch_pl_matches(date_from.isoformat(), date_to.isoformat(), token=token)
+    # Skip the cache read. A same-day postponement or a newly listed fixture
+    # must show up on the next publish. A successful fetch still writes the cache.
+    fetched = fetch_pl_matches(
+        date_from.isoformat(),
+        date_to.isoformat(),
+        token=token,
+        use_cache=False,
+    )
     in_window = matches_in_publish_window(fetched, now_utc=now)
 
     counts = {
@@ -74,39 +84,37 @@ def publish_slate(
     predicted = predict_matches(model, frame, temperature=temperature)
     published_at = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     as_of_date = _as_of_date(model.as_of)
+    books = load_book_index()
+
+    rows = []
+    for (fixture, home, away), pred in zip(
+        mapped, predicted.itertuples(index=False), strict=True
+    ):
+        row = {
+            "match_id": fixture["match_id"],
+            "model_version": version,
+            "kickoff_utc": fixture["kickoff_utc"],
+            "home_team": home,
+            "away_team": away,
+            "matchday": fixture.get("matchday"),
+            "competition": "PL",
+            "published_at": published_at,
+            "as_of_date": as_of_date,
+            "status": "scheduled",
+        }
+        row.update(_book_fields(lookup_book(books, home, away, fixture["kickoff_utc"])))
+        for field in _PROB_FIELDS:
+            row[field] = float(getattr(pred, field))
+        rows.append(row)
 
     init_db(PREDICTIONS_DB)
     conn = connect(PREDICTIONS_DB)
     try:
-        for (fixture, home, away), pred in zip(
-            mapped, predicted.itertuples(index=False), strict=True
-        ):
-            row = {
-                "match_id": fixture["match_id"],
-                "model_version": version,
-                "kickoff_utc": fixture["kickoff_utc"],
-                "home_team": home,
-                "away_team": away,
-                "matchday": fixture.get("matchday"),
-                "competition": "PL",
-                "published_at": published_at,
-                "as_of_date": as_of_date,
-                "status": "scheduled",
-                "book_p_home": None,
-                "book_p_draw": None,
-                "book_p_away": None,
-                "book_p_over_25": None,
-                "book_p_under_25": None,
-                "book_source": None,
-            }
-            for field in _PROB_FIELDS:
-                row[field] = float(getattr(pred, field))
-            if insert_prediction(conn, row):
-                counts["inserted"] += 1
-            else:
-                counts["skipped_duplicate"] += 1
+        written = insert_predictions(conn, rows)
     finally:
         conn.close()
+    counts["inserted"] = written["inserted"]
+    counts["skipped_duplicate"] = written["skipped_duplicate"]
 
     logger.info("Publish %s: %s", version, counts)
     return counts
@@ -122,6 +130,26 @@ def main() -> None:
         counts["inserted"],
         counts["skipped_duplicate"],
     )
+
+
+def _book_fields(quote: dict | None) -> dict:
+    if not quote:
+        return {
+            "book_p_home": None,
+            "book_p_draw": None,
+            "book_p_away": None,
+            "book_p_over_25": None,
+            "book_p_under_25": None,
+            "book_source": None,
+        }
+    return {
+        "book_p_home": quote.get("book_p_home"),
+        "book_p_draw": quote.get("book_p_draw"),
+        "book_p_away": quote.get("book_p_away"),
+        "book_p_over_25": quote.get("book_p_over_25"),
+        "book_p_under_25": quote.get("book_p_under_25"),
+        "book_source": quote.get("book_source"),
+    }
 
 
 def _as_utc(now_utc: datetime | None) -> datetime:

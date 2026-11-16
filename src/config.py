@@ -36,6 +36,9 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 PREDICTIONS_DB = DATA_PROCESSED / "predictions.sqlite"
 MODELS_DIR = ROOT / "models"
 FIXTURES_CACHE_DIR = DATA_RAW / "fixtures"
+# Upcoming odds list from football-data.co.uk (not the football-data.org JSON cache).
+FD_UK_FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
+FD_UK_FIXTURES_CSV = DATA_RAW / "fixtures.csv"
 TEAM_NAME_MAP_PATH = ROOT / "data" / "reference" / "team_name_map.json"
 PUBLISH_WINDOW_DAYS = 10
 FD_ORG_BASE = "https://api.football-data.org/v4"

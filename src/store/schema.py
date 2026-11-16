@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS predictions (
   book_source TEXT,
   published_at TEXT NOT NULL,
   as_of_date TEXT NOT NULL,
+  -- scheduled | postponed | cancelled | settled
+  -- postponed: football-data.org POSTPONED or SUSPENDED
+  -- cancelled: football-data.org CANCELLED
+  -- settled: full-time score stored; a later correction may replace goals
   status TEXT NOT NULL,
   home_goals INTEGER,
   away_goals INTEGER,
