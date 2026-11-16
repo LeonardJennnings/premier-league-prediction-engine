@@ -33,6 +33,13 @@ ELO_INITIAL = 1500.0
 FOOTBALL_DATA_ORG_TOKEN = os.getenv("FOOTBALL_DATA_ORG_TOKEN", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+PREDICTIONS_DB = DATA_PROCESSED / "predictions.sqlite"
+MODELS_DIR = ROOT / "models"
+FIXTURES_CACHE_DIR = DATA_RAW / "fixtures"
+TEAM_NAME_MAP_PATH = ROOT / "data" / "reference" / "team_name_map.json"
+PUBLISH_WINDOW_DAYS = 10
+FD_ORG_BASE = "https://api.football-data.org/v4"
+
 
 # Build each season's download URL and local raw-file path from shared settings.
 def season_url(season_code: str) -> str:

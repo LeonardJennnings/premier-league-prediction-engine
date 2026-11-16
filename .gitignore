@@ -10,11 +10,14 @@ __pycache__/
 .env.*
 !.env.example
 
-# Data and local artefacts
+# Data and local artefacts (data/reference/ is committed, not ignored)
 data/raw/
 data/processed/
 models/*.pkl
 models/*.joblib
+models/*/
+models/latest
+!models/.gitkeep
 
 # Editors and OS
 .DS_Store

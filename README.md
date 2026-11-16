@@ -2,7 +2,7 @@
 
 Historical Premier League results and bookmaker odds are messy to turn into a fair, repeatable forecast demo. This project downloads those CSVs, cleans them, fits simple match-outcome models, evaluates them on a fixed test set against the market, and shows the results in Streamlit.
 
-This is a **forecast / engineering demo**, not a betting tipster or gambling product.
+This is a **forecast / engineering demo**, not a gambling product.
 
 ![Dashboard screenshot](docs/dashboard.png)
 
@@ -68,14 +68,16 @@ More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SC
 
 ```text
 app/           Streamlit dashboard
-src/           Library code (download, clean, features, models, evaluate, pipeline)
+src/           Library code (download, clean, features, models, evaluate, jobs, pipeline)
 src/models/    Dixon–Coles, markets, Poisson, Elo, baseline, predict helper
 src/eval/      Walk-forward folds, calibration
+src/jobs/      Fit, publish, settle, precompute
 tests/         pytest suite
 data/raw/      Downloaded CSVs (gitignored)
-data/processed/  Cleaned matches (gitignored)
+data/processed/  Cleaned matches + predictions.sqlite (gitignored)
+data/reference/  Committed team-name map
 results/       Eval tables (committed); walk-forward is research SoT
-docs/          Scope, case study, eval protocol, dashboard screenshot
+docs/          Scope, case study, eval protocol, specs, notes
 SYLLABUS.md    Teaching syllabus + future-scope epics
 ```
 
@@ -111,7 +113,7 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is for a later fixtures API and can stay empty.
+`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is required for `publish`, `settle`, and `precompute`. Leave it empty if you only run the historical pipeline.
 
 ## Pipeline
 
@@ -122,6 +124,25 @@ python -m src.pipeline
 ```
 
 This downloads (or skips) raw CSVs, builds `data/processed/matches.csv`, fits the models, and prints a sample comparison.
+
+## Fixtures, fit, and settlement
+
+`publish` and `settle` read Premier League fixtures from football-data.org. Put `FOOTBALL_DATA_ORG_TOKEN` in `.env` before those commands. `fit` uses the local historical match table and does not call that API.
+
+```bash
+# requires FOOTBALL_DATA_ORG_TOKEN in .env
+python -m src.jobs.fit
+python -m src.jobs.publish
+python -m src.jobs.settle
+# or
+python -m src.jobs.precompute
+```
+
+`fit` writes a versioned Dixon–Coles artefact under `models/` and registers it in the prediction database. `publish` loads that artefact (the latest one, when no version is chosen), requests the next 10 days of fixtures, maps team names, and inserts one row per match and model version. Stored kickoffs are those in `[now, now + 10 days)`. football-data.org treats `dateTo` as exclusive, so the request end date is the following day. `precompute` runs `fit` and then `publish` as two steps. It does not settle.
+
+Probability columns are immutable after insert. `settle` writes full-time goals, the H/D/A result, `settled_at`, and `status` on finished matches that were already published. It does not change probabilities, and it does not insert a row for a match that was never published. A revised forecast is a new model version.
+
+football-data.org names must appear in `data/reference/team_name_map.json`. An unmapped name, or a team missing from the artefact, aborts the publish batch. Book columns stay null; this pipeline does not fetch odds.
 
 ## Evaluation
 
