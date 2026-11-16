@@ -2,10 +2,36 @@
 /**
  * How-it-works — quiet slide sections (Theme 4).
  * Copy uses lorem for placeholders; method outline is plain language.
+ * Counted peeks bind settled-store summaries (same honesty as Past).
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
-import CountedStat from "../components/CountedStat";
+import MethodPeeks from "../components/MethodPeeks";
 import MethodDisclosure from "../components/MethodDisclosure";
+import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
+import { SAMPLE_SETTLED } from "../lib/sample";
+import type { MatchPrediction } from "../lib/types";
+
+const apiBase = getApiBase();
+const weeksResult = await fetchWeeks();
+
+let peekMatches: MatchPrediction[] = [];
+let usingSample = false;
+
+if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
+  peekMatches = SAMPLE_SETTLED;
+  usingSample = true;
+} else {
+  const weekBatches = await Promise.all(
+    weeksResult.data.weeks.map((w) => fetchWeek(w.iso_week)),
+  );
+  for (const wr of weekBatches) {
+    if (wr.ok) peekMatches.push(...wr.data.matches);
+  }
+  if (peekMatches.length === 0) {
+    peekMatches = SAMPLE_SETTLED;
+    usingSample = true;
+  }
+}
 ---
 
 <BaseLayout
@@ -18,11 +44,12 @@ import MethodDisclosure from "../components/MethodDisclosure";
     <span class="lorem">Ut enim ad minim veniam — method notes, not tips.</span>
   </p>
 
-  <div class="counted">
-    {/* TODO(Data Scientist): bind real walk-forward summary metrics */}
-    <CountedStat client:load value={0.198} decimals={3} label="mean Brier (1X2) — placeholder" />
-    <CountedStat client:load value={61} label="top-call hits / 100 — placeholder" />
-  </div>
+  <MethodPeeks
+    client:load
+    apiBase={apiBase}
+    initialMatches={peekMatches}
+    usingSample={usingSample}
+  />
 
   <section class="slide" aria-labelledby="s1">
     <h2 class="section" id="s1">What you are looking at</h2>
@@ -69,6 +96,7 @@ import MethodDisclosure from "../components/MethodDisclosure";
     <p>
       Book percentages are de-vigged implied probabilities so columns share the same units.
       De-vig means removing the bookmaker margin so home / draw / away sum to 100% for fair comparison.
+      Book O/U 2.5 shows beside model O2.5 when present; book BTTS stays omitted until a source exists.
     </p>
   </section>
 
@@ -100,12 +128,6 @@ import MethodDisclosure from "../components/MethodDisclosure";
 </BaseLayout>
 
 <style>
-  .counted {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    margin-bottom: 28px;
-  }
   .slide {
     margin-bottom: 22px;
     max-width: 38em;
@@ -142,5 +164,13 @@ import MethodDisclosure from "../components/MethodDisclosure";
     font-family: var(--font-sans);
     font-size: 11px;
     fill: var(--ink-soft);
+  }
+  :global(.method-peeks) {
+    margin-bottom: 28px;
+  }
+  :global(.method-peeks .counted) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
   }
 </style>

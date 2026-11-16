@@ -2,6 +2,7 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 @import "./tokens.css";
+@import "./match-slate.css";
 
 * {
   box-sizing: border-box;

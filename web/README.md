@@ -6,10 +6,10 @@ Astro static site for **weekend + past + how-it-works**. Reads the Epic 4 Predic
 
 | Route | Job |
 |---|---|
-| `/` | This weekend’s model vs book 1X2 strips (+ BTTS / O/U) |
+| `/` | This weekend’s model vs book 1X2 strips (+ BTTS / O/U; book O2.5 when present) |
 | `/past` | Settled week index, latest scorecard, hit/miss waffle peeks |
 | `/past/[iso_week]` | One immutable ISO week |
-| `/how-it-works` | Short method slides |
+| `/how-it-works` | Short method slides + store-derived peeks |
 
 ## Env
 
@@ -19,11 +19,23 @@ Copy `.env.example` → `.env`:
 PUBLIC_PREDICTIONS_API_BASE=http://127.0.0.1:8000
 ```
 
-On the API side (repo root `.env`), allow the Astro origin:
+On the API side (repo root `.env`), allow the Astro origin **and** whatever origin serves the static `dist/` (needed for client refresh):
 
 ```bash
 API_CORS_ORIGINS=http://localhost:4321,http://127.0.0.1:4321
 ```
+
+## Freshness (SSG + light client refresh)
+
+Pages fetch the API **at build time**. If the API is down or empty during `astro build`, HTML ships with a **labelled sample** slate / peeks.
+
+To avoid a permanently sample-only `dist/`:
+
+1. **Client refresh (default)** — Weekend (`LiveWeekend`), Past peeks (`LivePastPeeks`), and Method peeks (`MethodPeeks`) re-fetch `PUBLIC_PREDICTIONS_API_BASE` after hydrate. When the live API returns rows, the island replaces build-time sample data. CORS must allow the site origin.
+2. **Rebuild on publish** — Still rebuild (or re-deploy) after publish/settle so:
+   - `/past/[iso_week]` static paths include new ISO weeks (`getStaticPaths`)
+   - First paint / no-JS viewers see real rows without waiting on the island
+3. **Ideal publish recipe** — API up → `cd web && npm run build` with `PUBLIC_PREDICTIONS_API_BASE` pointing at that API → deploy `dist/` → keep API reachable for client refresh.
 
 ## Run locally
 
@@ -55,6 +67,8 @@ npm run build    # static export → dist/
 npm run preview
 npm run check:metrics
 ```
+
+`check:metrics` imports `src/lib/metrics.ts` directly (no duplicated formulae).
 
 ## Ownership
 

@@ -1,6 +1,6 @@
 ---
 import type { MatchPrediction } from "../lib/types";
-import { formatKickoff, pctLabel, resultLabel } from "../lib/format";
+import { formatKickoff, resultLabel, secondaryMarketsLine } from "../lib/format";
 import ProbabilityStrip from "./ProbabilityStrip.astro";
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 }
 
 const { match, settled = false } = Astro.props;
-const bookSource = match.book_source ?? "book";
+const secondary = secondaryMarketsLine(match);
 ---
 
 <article class="match">
@@ -33,11 +33,7 @@ const bookSource = match.book_source ?? "book";
     />
   </div>
 
-  <p class="secondary nums">
-    BTTS {pctLabel(match.p_btts_yes)} / O2.5 {pctLabel(match.p_over_25)} — book: {
-      bookSource
-    }
-  </p>
+  <p class="secondary nums">{secondary}</p>
 
   {
     settled && (
