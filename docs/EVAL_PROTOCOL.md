@@ -55,9 +55,22 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Line | Description |
 |---|---|
 | Naive frequencies | Historical home/draw/away rates from the train window |
-| Poisson | Goals model with attack, defence, and home advantage |
+| Poisson | Independent Poisson goals model (attack, defence, home advantage) |
+| Dixon–Coles (raw) | Time-decayed Dixon–Coles 1X2 from the scoreline grid |
+| Dixon–Coles (calibrated) | Temperature-scaled 1X2; walk-forward only, after a prior-fold warm-start |
+| Elo | Rating comparator (1X2 only) |
 | Sklearn baseline | Logistic regression on pre-match features available at train time |
-| Bookmaker implied | De-vigged closing probabilities on the scored rows |
+| Bookmaker implied | De-vigged closing 1X2; over/under 2.5 when closing totals columns exist |
+
+**Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid. There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
+
+**Over/under book rule.** When `implied_over_25` is present, walk-forward reports a `bookmaker_over_25` line using binary log loss, Brier, and accuracy against the over-2.5 result. Those figures are not 1X2 scores. Missing over/under odds drop a row from the book comparison only; model totals are still scored against results.
+
+**Time decay (ξ).** Dixon–Coles match weights are \(e^{-\xi t}\) with \(t\) in days. ξ is a fixed config constant (`DIXON_COLES_XI`, about a one-year half-life). It is not jointly estimated with attack, defence, home advantage, or ρ.
+
+**Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
+
+**Offline predictions.** `src.models.predict.predict_matches` scores a fitted Dixon–Coles model on a match table. Optional temperature is applied to 1X2 only, matching the rule above.
 
 **Metrics**
 
