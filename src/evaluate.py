@@ -156,12 +156,32 @@ def save_results(df: pd.DataFrame, path: Path | None = None) -> Path:
 
 
 if __name__ == "__main__":
+    import argparse
+
     from src.config import LOG_LEVEL
+    from src.eval.walkforward import run_walkforward, write_walkforward_artefacts
     from src.logging_setup import setup_logging
 
     setup_logging(LOG_LEVEL)
     logger = logging.getLogger(__name__)
-    table = run_backtest()
-    out = save_results(table)
-    logger.info("\n%s", table.to_string(index=False))
-    logger.info("Saved %s", out)    
+
+    parser = argparse.ArgumentParser(description="Premier League evaluation")
+    parser.add_argument(
+        "--mode",
+        choices=("season", "walkforward"),
+        default="season",
+        help="season = fixed 2526 gate; walkforward = gameweek walk-forward",
+    )
+    args = parser.parse_args()
+
+    if args.mode == "season":
+        table = run_backtest()
+        out = save_results(table)
+        logger.info("\n%s", table.to_string(index=False))
+        logger.info("Saved %s", out)
+    else:
+        summary, by_gw, pred_frames = run_walkforward()
+        paths = write_walkforward_artefacts(summary, by_gw, pred_frames)
+        logger.info("\n%s", summary.to_string(index=False))
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)

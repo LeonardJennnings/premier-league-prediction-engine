@@ -109,10 +109,14 @@ This downloads (or skips) raw CSVs, builds `data/processed/matches.csv`, fits th
 ## Evaluation
 
 ```bash
-python -m src.evaluate
+# Season gate (fixed 2526 holdout)
+python -m src.evaluate --mode season
+
+# Gameweek walk-forward (primary research protocol; slower)
+python -m src.evaluate --mode walkforward
 ```
 
-Writes `results/eval_results.csv`. See `results/EVAL_README.md` for the test-set rule and metric definitions.
+Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. See [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) and `results/EVAL_README.md`.
 
 ## Results
 
