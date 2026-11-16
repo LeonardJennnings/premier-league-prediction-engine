@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 INSERT_COLUMNS = (
@@ -183,3 +183,90 @@ def upsert_model_artefact(
         (model_version, as_of_date, created_at, artefact_path, payload),
     )
     conn.commit()
+
+
+def _parse_utc(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def _iso_week_key(kickoff_utc: str) -> str:
+    dt = _parse_utc(kickoff_utc)
+    year, week, _ = dt.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def get_latest_model_version(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute(
+        """
+        SELECT model_version FROM model_artefacts
+        ORDER BY created_at DESC, model_version DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return None if row is None else row["model_version"]
+
+
+def get_model_artefact(conn: sqlite3.Connection, model_version: str) -> dict | None:
+    row = conn.execute(
+        "SELECT * FROM model_artefacts WHERE model_version = ?",
+        (model_version,),
+    ).fetchone()
+    return None if row is None else dict(row)
+
+
+def list_upcoming_predictions(
+    conn: sqlite3.Connection,
+    model_version: str,
+    *,
+    now_utc: str,
+    window_days: int,
+) -> list[dict]:
+    now = _parse_utc(now_utc)
+    end = now + timedelta(days=window_days)
+    rows = conn.execute(
+        """
+        SELECT * FROM predictions
+        WHERE model_version = ?
+          AND status IN ('scheduled', 'postponed')
+        ORDER BY kickoff_utc, match_id
+        """,
+        (model_version,),
+    ).fetchall()
+    out = []
+    for row in rows:
+        kick = _parse_utc(row["kickoff_utc"])
+        if now <= kick < end:
+            out.append(dict(row))
+    return out
+
+
+def list_settled_weeks(conn: sqlite3.Connection, model_version: str) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT kickoff_utc FROM predictions
+        WHERE model_version = ? AND status = 'settled'
+        """,
+        (model_version,),
+    ).fetchall()
+    counts: dict[str, int] = {}
+    for row in rows:
+        key = _iso_week_key(row["kickoff_utc"])
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        {"iso_week": week, "match_count": counts[week]}
+        for week in sorted(counts.keys(), reverse=True)
+    ]
+
+
+def list_settled_predictions_for_week(
+    conn: sqlite3.Connection, model_version: str, iso_week: str
+) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT * FROM predictions
+        WHERE model_version = ? AND status = 'settled'
+        ORDER BY kickoff_utc, match_id
+        """,
+        (model_version,),
+    ).fetchall()
+    return [dict(r) for r in rows if _iso_week_key(r["kickoff_utc"]) == iso_week]

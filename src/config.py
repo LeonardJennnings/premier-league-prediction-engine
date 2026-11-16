@@ -34,6 +34,12 @@ FOOTBALL_DATA_ORG_TOKEN = os.getenv("FOOTBALL_DATA_ORG_TOKEN", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 PREDICTIONS_DB = DATA_PROCESSED / "predictions.sqlite"
+# Comma-separated browser origins for the read-only API (local Next.js by default).
+API_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("API_CORS_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
 MODELS_DIR = ROOT / "models"
 FIXTURES_CACHE_DIR = DATA_RAW / "fixtures"
 # Upcoming odds list from football-data.co.uk (not the football-data.org JSON cache).

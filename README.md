@@ -68,7 +68,7 @@ More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SC
 
 ```text
 app/           Streamlit dashboard
-src/           Library code (download, clean, features, models, evaluate, jobs, pipeline)
+src/           Library code (download, clean, features, models, evaluate, jobs, pipeline, api)
 src/models/    Dixon–Coles, markets, Poisson, Elo, baseline, predict helper
 src/eval/      Walk-forward folds, calibration
 src/jobs/      Fit, publish, settle, precompute
@@ -113,7 +113,7 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is required for `publish`, `settle`, and `precompute`. Leave it empty if you only run the historical pipeline.
+`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is required for `publish`, `settle`, and `precompute`. Leave it empty if you only run the historical pipeline. `API_CORS_ORIGINS` defaults to `http://localhost:3000` for the Predictions API.
 
 ## Pipeline
 
@@ -143,6 +143,18 @@ python -m src.jobs.precompute
 Probability columns are immutable after insert. `settle` refetches the kickoff span of scheduled, postponed, and already settled rows, and it skips the fixture-cache read as well. It writes full-time goals, the H/D/A result, `settled_at`, and `status`. A later `FINISHED` payload with different goals corrects the score and result. `POSTPONED` and `SUSPENDED` set status `postponed`; `CANCELLED` sets `cancelled`. A new `utcDate` updates `kickoff_utc`. Settle does not change probabilities or book columns, and it does not insert a row for a match that was never published. A revised forecast is a new model version.
 
 football-data.org names must appear in `data/reference/team_name_map.json`. An unmapped name, or a team missing from the artefact, aborts the publish batch. After mapping, publish tries to fill `book_*` from the free [football-data.co.uk fixtures list](https://www.football-data.co.uk/fixtures.csv): Bet365 1X2, plus over/under 2.5 when both prices are present, de-vigged the same way as historical closing odds. A filled row sets `book_source` to `football-data.co.uk fixtures.csv (B365)`. If the download fails, the file has no Premier League rows, or the home team, away team, and date do not match, those columns stay null.
+
+## Predictions API
+
+Read-only FastAPI surface over the SQLite prediction store (no fit/predict on the request path).
+
+```bash
+uvicorn src.api.app:app --reload
+```
+
+Open http://127.0.0.1:8000/docs for OpenAPI. Endpoints: `GET /health`, `GET /v1/predictions/upcoming`, `GET /v1/predictions/weeks`, `GET /v1/predictions/weeks/{iso_week}`, `GET /v1/models/latest`, `GET /v1/models/{model_version}`. Optional `?model_version=` pin. Requires a populated `data/processed/predictions.sqlite` from `fit` / `publish` / `settle`.
+
+CORS allow-list is `API_CORS_ORIGINS` (comma-separated; default `http://localhost:3000`).
 
 ## Evaluation
 
