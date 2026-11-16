@@ -152,7 +152,7 @@ historical matches
 | `src/models/elo.py` | Elo fit / 1X2 predict |
 | `src/models/poisson.py` | Existing independent Poisson (unchanged) |
 | `src/eval/calibration.py` | Reliability plots; temperature and vector scaling |
-| `src/eval/walkforward.py` | Extended model lines and optional totals metrics |
+| `src/eval/walkforward.py` | Extended model lines plus binary O/U and BTTS metrics (`market` labelled) |
 | `src/clean.py` / `src/features.py` | Retain and de-vig over/under closing columns when present |
 
 Primary interfaces:

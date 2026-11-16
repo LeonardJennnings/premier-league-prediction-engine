@@ -21,12 +21,19 @@ flowchart LR
     end
 
     subgraph model [Models]
+        DixonColes["models/dixon_coles.py"]
+        Markets["models/markets.py"]
         Poisson["models/poisson.py"]
+        Elo["models/elo.py"]
         Baseline["models/baseline.py"]
     end
 
+    subgraph eval [Evaluation]
+        Walkforward["eval/walkforward.py"]
+        SeasonGate["evaluate.py season gate"]
+    end
+
     subgraph out [Outputs]
-        Evaluate["evaluate.py"]
         Results["results/ tables"]
         App["app/streamlit_app.py"]
     end
@@ -34,31 +41,41 @@ flowchart LR
     Pipeline["pipeline.py"] --> Download
     Settings --> Download
     Settings --> Clean
-    Settings --> Evaluate
+    Settings --> SeasonGate
     Download --> Clean
     Clean --> Features
+    Features --> DixonColes
+    DixonColes --> Markets
     Features --> Poisson
+    Features --> Elo
     Features --> Baseline
-    Poisson --> Evaluate
-    Baseline --> Evaluate
-    Evaluate --> Results
+    Markets --> Walkforward
+    DixonColes --> Walkforward
+    Poisson --> Walkforward
+    Elo --> Walkforward
+    Baseline --> Walkforward
+    Walkforward --> Results
+    SeasonGate --> Results
     Features --> App
-    Poisson --> App
-    Baseline --> App
+    DixonColes --> App
 ```
 
-More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SCOPE.md)
+Dixon–Coles is the product goals engine: one time-decayed scoreline grid feeds 1X2, BTTS, and over/under 2.5. Independent Poisson and Elo are 1X2 comparators; the sklearn baseline sits next to the bookmaker line.
+
+More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SCOPE.md) · [docs/EVAL_PROTOCOL.md](docs/EVAL_PROTOCOL.md)
 
 ## Project layout
 
 ```text
 app/           Streamlit dashboard
 src/           Library code (download, clean, features, models, evaluate, pipeline)
+src/models/    Dixon–Coles, markets, Poisson, Elo, baseline, predict helper
+src/eval/      Walk-forward folds, calibration
 tests/         pytest suite
 data/raw/      Downloaded CSVs (gitignored)
 data/processed/  Cleaned matches (gitignored)
-results/       Eval tables (committed)
-docs/          Scope, case study, dashboard screenshot
+results/       Eval tables (committed); walk-forward is research SoT
+docs/          Scope, case study, eval protocol, dashboard screenshot
 SYLLABUS.md    Teaching syllabus + future-scope epics
 ```
 
@@ -116,13 +133,13 @@ python -m src.evaluate --mode season
 python -m src.evaluate --mode walkforward
 ```
 
-Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. Walk-forward scores Dixon–Coles (raw and temperature-calibrated 1X2), Elo, independent Poisson, and book over/under 2.5 when those columns exist. Model O/U probabilities are produced from the scoreline grid but are not a published walk-forward summary line. See [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) and `results/EVAL_README.md`.
+Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. Walk-forward scores Dixon–Coles (raw and temperature-calibrated 1X2), Elo, independent Poisson, book 1X2, plus binary Dixon–Coles over/under 2.5 and BTTS from the same grid, and book over/under 2.5 when those columns exist. Binary market rows are labelled `market=over_under_25` / `market=btts` and must not be ranked against 1X2 log loss. See [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) and `results/EVAL_README.md`.
 
 ## Results
 
-**Research source of truth is gameweek walk-forward** (`python -m src.evaluate --mode walkforward`), not the fixed season gate below. The `2526` table is a regression smoke check; see `results/walkforward_summary.csv` and [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) for the primary protocol.
+**Research source of truth is gameweek walk-forward** (`python -m src.evaluate --mode walkforward`), not the fixed season gate below. Prefer `results/walkforward_summary.csv` (pooled proper scores) and [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) for research claims. The `2526` table is a regression smoke check only.
 
-Fixed backtest (season gate): train on seasons `2223`–`2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss / Brier is better.
+Season-gate smoke check: train on seasons `2223`–`2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss / Brier is better.
 
 | Model | Log loss | Brier | Accuracy |
 |-------|----------|-------|----------|

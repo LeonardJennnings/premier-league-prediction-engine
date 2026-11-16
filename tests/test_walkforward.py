@@ -89,6 +89,7 @@ def test_pooled_summary_weights_by_match_count():
             {
                 "run_date": "2026-11-16",
                 "model": "toy",
+                "market": "1x2",
                 "season_code": "2425",
                 "gameweek": 1,
                 "n_train": 10,
@@ -100,6 +101,7 @@ def test_pooled_summary_weights_by_match_count():
             {
                 "run_date": "2026-11-16",
                 "model": "toy",
+                "market": "1x2",
                 "season_code": "2425",
                 "gameweek": 2,
                 "n_train": 11,
@@ -182,12 +184,22 @@ def test_walkforward_includes_dixon_coles_and_elo():
     assert "dixon_coles" in models
     assert "elo" in models
     assert "poisson" in models
+    assert "dixon_coles_over_25" in models
+    assert "dixon_coles_btts" in models
     assert "dixon_coles_calibrated" not in models
     assert "bookmaker_over_25" not in models
     dc = preds["dixon_coles"]
-    assert {"p_over_25", "p_under_25"} <= set(dc.columns)
+    assert {"p_over_25", "p_under_25", "p_btts_yes", "p_btts_no"} <= set(dc.columns)
     assert ((dc["p_over_25"] >= 0) & (dc["p_over_25"] <= 1)).all()
     assert ((dc["p_under_25"] >= 0) & (dc["p_under_25"] <= 1)).all()
+    ou = summary.loc[summary["model"] == "dixon_coles_over_25"].iloc[0]
+    btts = summary.loc[summary["model"] == "dixon_coles_btts"].iloc[0]
+    assert ou["market"] == "over_under_25"
+    assert btts["market"] == "btts"
+    assert ou["aggregation"] == "pooled"
+    assert not preds["dixon_coles_over_25"].empty
+    assert not preds["dixon_coles_btts"].empty
+    assert summary.loc[summary["model"] == "dixon_coles", "market"].iloc[0] == "1x2"
 
 
 def test_calibrated_line_uses_only_prior_folds(monkeypatch):
@@ -233,12 +245,24 @@ def test_over_under_book_row_when_implied_over_present():
     assert row["n_test"] > 0
     assert row["log_loss"] > 0
     assert row["aggregation"] == "pooled"
+    assert row["market"] == "over_under_25"
+    # Binary O/U and 1X2 share a CSV but must stay labelled separately.
+    assert set(summary.loc[summary["market"] == "1x2", "model"]) >= {
+        "dixon_coles",
+        "elo",
+        "poisson",
+    }
+    assert set(summary.loc[summary["market"] == "over_under_25", "model"]) >= {
+        "dixon_coles_over_25",
+        "bookmaker_over_25",
+    }
 
 
 def test_walkforward_readme_names_new_models(tmp_path):
     summary = pd.DataFrame(
         {
             "model": ["poisson"],
+            "market": ["1x2"],
             "run_date": ["2026-11-16"],
             "n_folds": [1],
             "n_test": [1],
@@ -266,9 +290,12 @@ def test_walkforward_readme_names_new_models(tmp_path):
     text = paths["readme"].read_text(encoding="utf-8")
     assert "dixon_coles" in text
     assert "dixon_coles_calibrated" in text
+    assert "dixon_coles_over_25" in text
+    assert "dixon_coles_btts" in text
     assert "elo" in text
     assert "prior" in text.lower()
     assert "pooled" in text.lower()
+    assert "do not rank" in text.lower()
 
 
 def test_season_gate_reports_dixon_coles_and_elo_not_calibrated():

@@ -88,3 +88,30 @@ def test_mean_attack_near_one():
     model = fit_dixon_coles(_toy_matches())
     mean_att = sum(model.attack.values()) / len(model.attack)
     assert abs(mean_att - 1.0) < 1e-5
+
+
+def test_optimizer_success_false_falls_back_to_poisson_init_rho_zero(monkeypatch):
+    """When minimize reports success=False, return Poisson-init strengths with ρ=0."""
+    from types import SimpleNamespace
+
+    import src.models.dixon_coles as dc
+
+    def _fake_minimize(objective, x0, method=None, bounds=None, options=None):
+        bad = np.asarray(x0, dtype=float).copy()
+        # Finite but non-success — the honest-failure path, not an exception.
+        return SimpleNamespace(
+            success=False,
+            x=bad,
+            fun=float(objective(bad)),
+            message="forced failure for unit test",
+        )
+
+    monkeypatch.setattr(dc, "minimize", _fake_minimize)
+    model = fit_dixon_coles(_toy_matches())
+    assert model.rho == 0.0
+    assert model.attack
+    assert model.defence
+    assert abs(sum(model.attack.values()) / len(model.attack) - 1.0) < 1e-5
+    # Fallback is the Poisson moment init, so rates stay positive and markets sum.
+    probs = predict_match(model, "Alpha", "Beta")
+    assert abs(probs["home"] + probs["draw"] + probs["away"] - 1.0) < 1e-8

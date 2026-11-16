@@ -89,10 +89,13 @@ def _metric_row(
     n_train: int,
     y_true,
     P,
+    *,
+    market: str = "1x2",
 ) -> dict:
     return {
         "run_date": run_at,
         "model": model,
+        "market": market,
         "season_code": season,
         "gameweek": gw,
         "n_train": n_train,
@@ -118,13 +121,16 @@ def _binary_metric_row(
     n_train: int,
     y_true,
     p,
+    *,
+    market: str,
 ) -> dict:
-    """Score a binary over-2.5 line. Brier is mean squared error, not the 1X2 Brier."""
+    """Score a binary market line. Brier is mean squared error, not the 1X2 Brier."""
     y = np.asarray(y_true, dtype=float)
     prob = np.clip(np.asarray(p, dtype=float), 0.0, 1.0)
     return {
         "run_date": run_at,
         "model": model,
+        "market": market,
         "season_code": season,
         "gameweek": gw,
         "n_train": n_train,
@@ -135,6 +141,23 @@ def _binary_metric_row(
     }
 
 
+def _infer_market(model: str, fold_rows: pd.DataFrame, frame: pd.DataFrame) -> str:
+    """Label the market family so binary lines are not ranked with 1X2."""
+    if not fold_rows.empty and "market" in fold_rows.columns:
+        values = fold_rows["market"].dropna().unique()
+        if len(values) == 1:
+            return str(values[0])
+    if model.endswith("_over_25"):
+        return "over_under_25"
+    if model.endswith("_btts"):
+        return "btts"
+    if {"y_over", "p_over"} <= set(frame.columns):
+        return "over_under_25"
+    if {"y_btts", "p_btts"} <= set(frame.columns):
+        return "btts"
+    return "1x2"
+
+
 def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], run_at: str) -> pd.DataFrame:
     """Research SoT row: pooled proper scores over all scored matches.
 
@@ -142,8 +165,9 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
     gameweeks, odds dropouts). Pooled log loss / Brier / accuracy use every
     prediction once. Per-fold tables remain in ``by_gw`` for diagnosis.
 
-    1X2 frames use ``p_home`` / ``p_draw`` / ``p_away``. Binary O/U frames
-    (e.g. bookmaker_over_25) use ``y_over`` / ``p_over``.
+    1X2 frames use ``p_home`` / ``p_draw`` / ``p_away``. Binary frames use
+    ``y_over`` / ``p_over`` (totals) or ``y_btts`` / ``p_btts``. The ``market``
+    column labels the family; binary log loss is not comparable to 1X2.
     """
     rows = []
     models = sorted(by_gw["model"].unique()) if not by_gw.empty else list(pred_frames)
@@ -152,12 +176,14 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
         fold_rows = by_gw[by_gw["model"] == model] if not by_gw.empty else pd.DataFrame()
         n_folds = int(len(fold_rows))
         n_test_folds = int(fold_rows["n_test"].sum()) if not fold_rows.empty else 0
+        market = _infer_market(model, fold_rows, frame)
 
         if frame.empty:
             rows.append(
                 {
                     "run_date": run_at,
                     "model": model,
+                    "market": market,
                     "n_folds": n_folds,
                     "n_test": n_test_folds,
                     "log_loss": float("nan"),
@@ -175,6 +201,7 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
                 {
                     "run_date": run_at,
                     "model": model,
+                    "market": market,
                     "n_folds": n_folds,
                     "n_test": len(y_true),
                     "log_loss": round(log_loss(y_true, P), 4),
@@ -185,13 +212,19 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
             )
             continue
 
+        binary_cols = None
         if {"y_over", "p_over"} <= set(frame.columns):
-            y = frame["y_over"].to_numpy(dtype=float)
-            p = frame["p_over"].to_numpy(dtype=float)
+            binary_cols = ("y_over", "p_over")
+        elif {"y_btts", "p_btts"} <= set(frame.columns):
+            binary_cols = ("y_btts", "p_btts")
+        if binary_cols is not None:
+            y = frame[binary_cols[0]].to_numpy(dtype=float)
+            p = frame[binary_cols[1]].to_numpy(dtype=float)
             rows.append(
                 {
                     "run_date": run_at,
                     "model": model,
+                    "market": market,
                     "n_folds": n_folds,
                     "n_test": len(y),
                     "log_loss": round(_binary_log_loss(y, p), 4),
@@ -208,6 +241,7 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
             {
                 "run_date": run_at,
                 "model": model,
+                "market": market,
                 "n_folds": n_folds,
                 "n_test": n_test_folds,
                 "log_loss": float("nan"),
@@ -245,6 +279,8 @@ def run_walkforward(
         "poisson": [],
         "dixon_coles": [],
         "dixon_coles_calibrated": [],
+        "dixon_coles_over_25": [],
+        "dixon_coles_btts": [],
         "elo": [],
         "sklearn_baseline": [],
         "bookmaker_implied": [],
@@ -309,7 +345,54 @@ def run_walkforward(
                     "p_away": dc_P[i, 2],
                     "p_over_25": dc_rows[i]["over_25"],
                     "p_under_25": dc_rows[i]["under_25"],
+                    "p_btts_yes": dc_rows[i]["btts_yes"],
+                    "p_btts_no": dc_rows[i]["btts_no"],
                 }
+            )
+
+        # Model O/U and BTTS from the same raw grid (not temperature-scaled).
+        y_over = (
+            (test["home_goals"].to_numpy(dtype=float) + test["away_goals"].to_numpy(dtype=float))
+            >= 3
+        ).astype(float)
+        p_over = np.array([row["over_25"] for row in dc_rows], dtype=float)
+        by_gw_rows.append(
+            _binary_metric_row(
+                run_at,
+                "dixon_coles_over_25",
+                season,
+                gw,
+                len(train),
+                y_over,
+                p_over,
+                market="over_under_25",
+            )
+        )
+        for y_i, p_i in zip(y_over, p_over):
+            pred_records["dixon_coles_over_25"].append(
+                {"y_over": float(y_i), "p_over": float(p_i)}
+            )
+
+        y_btts = (
+            (test["home_goals"].to_numpy(dtype=float) >= 1)
+            & (test["away_goals"].to_numpy(dtype=float) >= 1)
+        ).astype(float)
+        p_btts = np.array([row["btts_yes"] for row in dc_rows], dtype=float)
+        by_gw_rows.append(
+            _binary_metric_row(
+                run_at,
+                "dixon_coles_btts",
+                season,
+                gw,
+                len(train),
+                y_btts,
+                p_btts,
+                market="btts",
+            )
+        )
+        for y_i, p_i in zip(y_btts, p_btts):
+            pred_records["dixon_coles_btts"].append(
+                {"y_btts": float(y_i), "p_btts": float(p_i)}
             )
 
         # Temperature uses earlier folds only. Append this fold after the fit.
@@ -428,6 +511,7 @@ def run_walkforward(
                         n_train_ou,
                         y_over,
                         p_over,
+                        market="over_under_25",
                     )
                 )
                 for y_i, p_i in zip(y_over.to_numpy(), p_over):
@@ -479,21 +563,19 @@ def write_walkforward_artefacts(
         "- Train: all matches with date strictly before the fold\n"
         "- Features: built per fold; history-dependent columns use date < fold cutoff only\n"
         "- Minimum train rows: 200\n"
-        "- Models (1X2): naive_frequencies, poisson, dixon_coles, "
+        "- Models (1X2, market=1x2): naive_frequencies, poisson, dixon_coles, "
         "dixon_coles_calibrated, elo, sklearn_baseline, bookmaker_implied\n"
         "- dixon_coles_calibrated: temperature scaling fit on prior-fold "
         "Dixon–Coles 1X2 predictions only. The line is skipped until that "
         f"prior store has at least {CALIBRATION_MIN_ROWS} rows "
         "(the raw line is not copied in). Summary fold counts can therefore "
         "differ from raw Dixon–Coles; compare them on shared gameweeks.\n"
-        "- Over/under 2.5 probabilities (`p_over_25`, `p_under_25`) are stored "
-        "on Dixon–Coles prediction frames from the raw scoreline grid. "
-        "Temperature scaling does not change them. Model O/U walk-forward "
-        "metrics are not a published summary line.\n"
-        "- bookmaker_over_25: binary over-2.5 log loss, Brier, and accuracy "
-        "when `implied_over_25` is present. Those figures are not 1X2 scores "
-        "and must not be ranked against 1X2 log loss. Missing O/U odds drop "
-        "a row from the book comparison only.\n"
+        "- Binary markets (do not rank against 1X2): dixon_coles_over_25 "
+        "(market=over_under_25) and dixon_coles_btts (market=btts) are scored "
+        "from the raw scoreline grid every fold. bookmaker_over_25 uses the "
+        "same binary metrics when `implied_over_25` is present; missing O/U "
+        "odds drop a row from the book comparison only. Temperature scaling "
+        "does not change O/U or BTTS.\n"
         "- ξ (`DIXON_COLES_XI`) is a config constant, not jointly estimated.\n"
         "- Summary metrics: pooled over all scored matches (per-fold CSV for diagnosis)\n"
         "- Calibration plots: home-win reliability for 1X2 lines\n"
