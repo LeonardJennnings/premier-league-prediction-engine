@@ -12,6 +12,8 @@ from src.eval.walkforward import (
     run_walkforward,
     write_walkforward_artefacts,
 )
+
+
 def _synthetic_matches(n: int = 30) -> pd.DataFrame:
     dates = pd.date_range("2024-08-01", periods=n, freq="D")
     # Varying odds so de-vig sums are interesting but always normalise to 1.
@@ -31,6 +33,31 @@ def _synthetic_matches(n: int = 30) -> pd.DataFrame:
             "home_odds_close": home_odds,
             "draw_odds_close": draw_odds,
             "away_odds_close": away_odds,
+        }
+    )
+
+
+def _mixed_matches(n: int = 24) -> pd.DataFrame:
+    """H/D/A cycle so the sklearn baseline has more than one class."""
+    dates = pd.date_range("2024-08-01", periods=n, freq="D")
+    results = [["H", "D", "A"][i % 3] for i in range(n)]
+    goals = {"H": (2, 0), "D": (1, 1), "A": (0, 2)}
+    homes = ["Arsenal", "Chelsea", "Liverpool", "Spurs"]
+    aways = ["Chelsea", "Arsenal", "Spurs", "Liverpool"]
+    implied_home = [0.45 + (i % 5) * 0.02 for i in range(n)]
+    implied_away = [0.27 - (i % 5) * 0.02 for i in range(n)]
+    return pd.DataFrame(
+        {
+            "season_code": ["2425"] * n,
+            "date": dates,
+            "home_team": [homes[i % 4] for i in range(n)],
+            "away_team": [aways[i % 4] for i in range(n)],
+            "home_goals": [goals[r][0] for r in results],
+            "away_goals": [goals[r][1] for r in results],
+            "result": results,
+            "implied_home": implied_home,
+            "implied_draw": [0.28] * n,
+            "implied_away": implied_away,
         }
     )
 
@@ -133,3 +160,128 @@ def test_run_walkforward_synthetic_integration(tmp_path: Path):
     assert not book.empty
     sums = book["p_home"] + book["p_draw"] + book["p_away"]
     assert np.allclose(sums.to_numpy(dtype=float), 1.0, atol=1e-9)
+
+
+def test_new_models_import_and_fit_on_synthetic():
+    from src.models.dixon_coles import fit_dixon_coles, predict_match as dc_predict
+    from src.models.elo import fit_elo, predict_match as elo_predict
+
+    matches = _synthetic_matches(40)
+    matches["home_goals"] = 1
+    matches["away_goals"] = 0
+    dc = fit_dixon_coles(matches)
+    elo = fit_elo(matches.assign(result=["H"] * 40))
+    assert "home" in dc_predict(dc, "Arsenal", "Chelsea")
+    assert "home" in elo_predict(elo, "Arsenal", "Chelsea")
+
+
+def test_walkforward_includes_dixon_coles_and_elo():
+    matches = assign_gameweeks(_mixed_matches(20), matches_per_gw=5)
+    summary, _, preds = run_walkforward(matches, min_train_rows=5)
+    models = set(summary["model"])
+    assert "dixon_coles" in models
+    assert "elo" in models
+    assert "poisson" in models
+    assert "dixon_coles_calibrated" not in models
+    assert "bookmaker_over_25" not in models
+    dc = preds["dixon_coles"]
+    assert {"p_over_25", "p_under_25"} <= set(dc.columns)
+    assert ((dc["p_over_25"] >= 0) & (dc["p_over_25"] <= 1)).all()
+    assert ((dc["p_under_25"] >= 0) & (dc["p_under_25"] <= 1)).all()
+
+
+def test_calibrated_line_uses_only_prior_folds(monkeypatch):
+    from src.eval.calibration import fit_temperature
+
+    seen_lengths: list[int] = []
+
+    def _spy(y_true, P):
+        seen_lengths.append(len(list(y_true)))
+        return fit_temperature(y_true, P)
+
+    monkeypatch.setattr("src.eval.walkforward.fit_temperature", _spy)
+
+    matches = assign_gameweeks(_mixed_matches(24), matches_per_gw=4)
+    _, by_gw, preds = run_walkforward(
+        matches, min_train_rows=4, calibration_min_rows=8
+    )
+    raw = by_gw[by_gw["model"] == "dixon_coles"]
+    cal = by_gw[by_gw["model"] == "dixon_coles_calibrated"]
+    prior = 0
+    expected_gws: list[int] = []
+    expected_prior: list[int] = []
+    for row in raw.itertuples(index=False):
+        if prior >= 8:
+            expected_gws.append(int(row.gameweek))
+            expected_prior.append(prior)
+        prior += int(row.n_test)
+
+    assert cal["gameweek"].astype(int).tolist() == expected_gws
+    assert seen_lengths == expected_prior
+    assert len(preds["dixon_coles_calibrated"]) == int(cal["n_test"].sum())
+    assert len(expected_gws) > 0
+    assert len(expected_gws) < len(raw)
+
+
+def test_over_under_book_row_when_implied_over_present():
+    frame = _mixed_matches(20)
+    frame["implied_over_25"] = 0.55
+    matches = assign_gameweeks(frame, matches_per_gw=5)
+    summary, _, _ = run_walkforward(matches, min_train_rows=5)
+    assert "bookmaker_over_25" in set(summary["model"])
+    row = summary.loc[summary["model"] == "bookmaker_over_25"].iloc[0]
+    assert row["n_test"] > 0
+    assert row["log_loss"] > 0
+    assert row["aggregation"] == "pooled"
+
+
+def test_walkforward_readme_names_new_models(tmp_path):
+    summary = pd.DataFrame(
+        {
+            "model": ["poisson"],
+            "run_date": ["2026-11-16"],
+            "n_folds": [1],
+            "n_test": [1],
+            "log_loss": [1.0],
+            "brier": [0.2],
+            "accuracy": [0.5],
+            "aggregation": ["pooled"],
+        }
+    )
+    by_gw = summary.copy()
+    by_gw["season_code"] = "2425"
+    by_gw["gameweek"] = 1
+    by_gw["n_train"] = 10
+    preds = {
+        "poisson": pd.DataFrame(
+            {
+                "result": ["H"],
+                "p_home": [0.5],
+                "p_draw": [0.3],
+                "p_away": [0.2],
+            }
+        )
+    }
+    paths = write_walkforward_artefacts(summary, by_gw, preds, results_dir=tmp_path)
+    text = paths["readme"].read_text(encoding="utf-8")
+    assert "dixon_coles" in text
+    assert "dixon_coles_calibrated" in text
+    assert "elo" in text
+    assert "prior" in text.lower()
+    assert "pooled" in text.lower()
+
+
+def test_season_gate_reports_dixon_coles_and_elo_not_calibrated():
+    from src.evaluate import run_backtest
+
+    train = _mixed_matches(18)
+    train["season_code"] = "2425"
+    test = _mixed_matches(6)
+    test["season_code"] = "2526"
+    test["date"] = pd.date_range("2025-08-01", periods=6, freq="D")
+    table = run_backtest(matches=pd.concat([train, test], ignore_index=True))
+    models = set(table["model"])
+    assert "dixon_coles" in models
+    assert "elo" in models
+    assert "dixon_coles_calibrated" not in models
+    assert {"naive_frequencies", "poisson", "sklearn_baseline", "bookmaker_implied"} <= models
