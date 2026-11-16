@@ -173,6 +173,25 @@ def run_backtest(
                 "accuracy": round(accuracy(y_true, P), 4),
             }
         )
+
+    open_cols = ["implied_home_open", "implied_draw_open", "implied_away_open"]
+    if set(open_cols) <= set(test.columns):
+        open_test = test.dropna(subset=open_cols + ["result"])
+        if not open_test.empty:
+            open_P = open_test[open_cols].to_numpy(dtype=float)
+            y_open = open_test["result"].tolist()
+            rows.append(
+                {
+                    "run_date": run_at,
+                    "model": "bookmaker_opening",
+                    "test_set": test_season,
+                    "n_train": len(train),
+                    "n_test": len(open_test),
+                    "log_loss": round(log_loss(y_open, open_P), 4),
+                    "brier": round(brier_score(y_open, open_P), 4),
+                    "accuracy": round(accuracy(y_open, open_P), 4),
+                }
+            )
     return pd.DataFrame(rows)
 
 

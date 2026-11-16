@@ -48,7 +48,9 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 
 **Refit policy.** Models are refit at every fold on the expanding history available before that fold. Strengths are not frozen for an entire season. The job is an offline batch process; it is not executed on HTTP request paths.
 
-**Feature as-of rule.** Point-in-time columns (match id, closing implied odds) come from the match row. History-dependent features (form, Elo, decay — when added) are built per fold via `features_for_fold` / `add_features(..., history=..., cutoff=...)` and must use only matches with `date <` the fold cutoff. A helper assert rejects future-looking history joins.
+**Feature as-of rule.** Point-in-time columns (match id, opening/closing implied odds) come from the match row. History-dependent features (form, Elo, decay — when added) are built per fold via `features_for_fold` / `add_features(..., history=..., cutoff=...)` and must use only matches with `date <` the fold cutoff. A helper assert rejects future-looking history joins.
+
+**Opening vs closing book.** football-data.co.uk stores Bet365 pre-closing odds (`B365H/D/A`, `B365>2.5`) and closing odds (`B365CH/CD/CA`, `B365C>2.5`). Closing remains the harder skill benchmark and the default `bookmaker_implied` line. Opening is a separate comparator for “could we have matched the book at publish time?” — do not mix the two when claiming an edge. Closing O/U prefers `B365C>2.5` / `AvgC>2.5` and only falls back to the non-C series when closing totals are absent (older seasons).
 
 **Comparators**
 
@@ -60,14 +62,16 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Dixon–Coles (calibrated) | Temperature-scaled 1X2; walk-forward only, after a prior-fold warm-start |
 | Elo | Rating comparator (1X2 only) |
 | Sklearn baseline | Logistic regression on pre-match features available at train time |
-| Bookmaker implied | De-vigged closing 1X2 |
+| Bookmaker implied | De-vigged Bet365 **closing** 1X2 (`B365CH/CD/CA`) |
+| Bookmaker opening | De-vigged Bet365 **pre-closing** 1X2 (`B365H/D/A`) when present |
 | Dixon–Coles O/U 2.5 | Binary line `dixon_coles_over_25` from the raw grid (`market=over_under_25`) |
 | Dixon–Coles BTTS | Binary line `dixon_coles_btts` from the raw grid (`market=btts`); model-only until a book series exists |
 | Bookmaker O/U 2.5 | Binary `bookmaker_over_25` when closing totals columns exist (`market=over_under_25`) |
+| Bookmaker O/U 2.5 open | Binary `bookmaker_over_25_open` when pre-closing totals exist |
 
 **Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid (and the `predict_matches` helper). There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
 
-**Over/under and BTTS scoring.** Walk-forward publishes pooled binary metrics for `dixon_coles_over_25` and `dixon_coles_btts` every fold, plus `bookmaker_over_25` when `implied_over_25` is present. Each summary / by-gameweek row carries a `market` label (`1x2`, `over_under_25`, or `btts`). Missing over/under odds drop a row from the book comparison only.
+**Over/under and BTTS scoring.** Walk-forward publishes pooled binary metrics for `dixon_coles_over_25` and `dixon_coles_btts` every fold, plus `bookmaker_over_25` / `bookmaker_over_25_open` when the matching implied totals column is present. Each summary / by-gameweek row carries a `market` label (`1x2`, `over_under_25`, or `btts`). Missing over/under odds drop a row from that book comparison only.
 
 **Do not rank binary markets against 1X2.** Binary O/U and BTTS log loss are two-class scores. 1X2 log loss is a three-class score. Those numbers are not comparable; filter on `market` (or the model name suffix) and never sort the full CSV as one league table.
 

@@ -2,8 +2,8 @@
 
 Feature contract
 ----------------
-* **Point-in-time** columns (match id, closing implied odds) come from the
-  match row itself and do not join other fixtures.
+* **Point-in-time** columns (match id, opening/closing implied odds) come from
+  the match row itself and do not join other fixtures.
 * **History-dependent** columns (future form / Elo / decay) must be computed
   only from matches with ``date < cutoff`` for the row or fold being scored.
   Use :func:`assert_history_before_cutoff` and
@@ -31,28 +31,88 @@ def add_match_id(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _devig_1x2(
+    out: pd.DataFrame,
+    home_col: str,
+    draw_col: str,
+    away_col: str,
+    *,
+    implied_home: str,
+    implied_draw: str,
+    implied_away: str,
+) -> None:
+    """Write de-vigged 1X2 implied probs when all three odds columns exist."""
+    needed = [home_col, draw_col, away_col]
+    if not all(c in out.columns for c in needed):
+        return
+    raw_h = 1 / out[home_col]
+    raw_d = 1 / out[draw_col]
+    raw_a = 1 / out[away_col]
+    total = raw_h + raw_d + raw_a
+    out[implied_home] = raw_h / total
+    out[implied_draw] = raw_d / total
+    out[implied_away] = raw_a / total
+
+
+def _devig_ou(
+    out: pd.DataFrame,
+    over_col: str,
+    under_col: str,
+    *,
+    implied_over: str,
+    implied_under: str,
+) -> None:
+    """Write de-vigged O/U 2.5 implied probs when both odds columns exist."""
+    if over_col not in out.columns or under_col not in out.columns:
+        return
+    raw_over = 1 / out[over_col]
+    raw_under = 1 / out[under_col]
+    total_ou = raw_over + raw_under
+    out[implied_over] = raw_over / total_ou
+    out[implied_under] = raw_under / total_ou
+
+
 def add_implied_odds(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert closing decimal odds to normalised implied probabilities."""
+    """Convert opening/closing decimal odds to normalised implied probabilities.
+
+    Closing 1X2 keeps the historical names ``implied_home`` / ``implied_draw`` /
+    ``implied_away`` (bookmaker_implied / sklearn baseline). Opening 1X2 uses
+    ``implied_*_open``. Closing O/U stays ``implied_over_25`` /
+    ``implied_under_25``; opening O/U uses ``implied_*_open``.
+    """
     out = df.copy()
-    needed = ["home_odds_close", "draw_odds_close", "away_odds_close"]
-    if all(c in out.columns for c in needed):
-        raw_h = 1 / out["home_odds_close"]
-        raw_d = 1 / out["draw_odds_close"]
-        raw_a = 1 / out["away_odds_close"]
-        total = raw_h + raw_d + raw_a
-
-        out["implied_home"] = raw_h / total
-        out["implied_draw"] = raw_d / total
-        out["implied_away"] = raw_a / total
-
-    ou_needed = ["over_25_odds_close", "under_25_odds_close"]
-    if all(c in out.columns for c in ou_needed):
-        raw_over = 1 / out["over_25_odds_close"]
-        raw_under = 1 / out["under_25_odds_close"]
-        total_ou = raw_over + raw_under
-
-        out["implied_over_25"] = raw_over / total_ou
-        out["implied_under_25"] = raw_under / total_ou
+    _devig_1x2(
+        out,
+        "home_odds_close",
+        "draw_odds_close",
+        "away_odds_close",
+        implied_home="implied_home",
+        implied_draw="implied_draw",
+        implied_away="implied_away",
+    )
+    _devig_1x2(
+        out,
+        "home_odds_open",
+        "draw_odds_open",
+        "away_odds_open",
+        implied_home="implied_home_open",
+        implied_draw="implied_draw_open",
+        implied_away="implied_away_open",
+    )
+    _devig_ou(
+        out,
+        "over_25_odds_close",
+        "under_25_odds_close",
+        implied_over="implied_over_25",
+        implied_under="implied_under_25",
+    )
+    _devig_ou(
+        out,
+        "over_25_odds_open",
+        "under_25_odds_open",
+        implied_over="implied_over_25_open",
+        implied_under="implied_under_25_open",
+    )
     return out
 
 

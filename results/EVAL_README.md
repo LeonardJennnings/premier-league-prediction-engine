@@ -18,6 +18,7 @@
 - poisson — goals model fit on train only
 - sklearn_baseline — logistic regression on implied odds, fit on train only
 - bookmaker_implied — normalised closing Bet365 probabilities on the test rows
+- bookmaker_opening — normalised pre-closing Bet365 probabilities when `B365H/D/A` are present (separate line; do not mix with closing when claiming an edge)
 
 ## What good looks like
 

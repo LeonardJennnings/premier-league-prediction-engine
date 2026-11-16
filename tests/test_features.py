@@ -38,6 +38,36 @@ def test_implied_odds_missing_columns_leaves_frame():
     assert list(out.columns) == ["home_team"]
 
 
+def test_implied_opening_odds_normalise():
+    df = pd.DataFrame(
+        [
+            {
+                "home_odds_open": 2.0,
+                "draw_odds_open": 4.0,
+                "away_odds_open": 4.0,
+                "home_odds_close": 1.8,
+                "draw_odds_close": 3.5,
+                "away_odds_close": 4.5,
+            }
+        ]
+    )
+    out = add_implied_odds(df)
+
+    total_open = (
+        out.loc[0, "implied_home_open"]
+        + out.loc[0, "implied_draw_open"]
+        + out.loc[0, "implied_away_open"]
+    )
+    total_close = (
+        out.loc[0, "implied_home"]
+        + out.loc[0, "implied_draw"]
+        + out.loc[0, "implied_away"]
+    )
+    assert abs(total_open - 1.0) < 1e-9
+    assert abs(total_close - 1.0) < 1e-9
+    assert out.loc[0, "implied_home_open"] != out.loc[0, "implied_home"]
+
+
 def test_implied_over_under_25_devig_when_both_present():
     df = pd.DataFrame(
         [

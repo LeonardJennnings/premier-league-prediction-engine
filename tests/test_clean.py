@@ -15,6 +15,9 @@ def test_clean_frame_parses_date_and_keeps_result():
                 "FTHG": 4,
                 "FTAG": 2,
                 "FTR": "H",
+                "B365H": 1.55,
+                "B365D": 3.80,
+                "B365A": 5.50,
                 "B365CH": 1.5,
                 "B365CD": 4.0,
                 "B365CA": 6.0,
@@ -29,6 +32,10 @@ def test_clean_frame_parses_date_and_keeps_result():
     assert out.loc[0, "home_team"] == "Liverpool"
     assert out.loc[0, "home_goals"] == 4
     assert out.loc[0, "result"] == "H"
+    assert out.loc[0, "home_odds_open"] == 1.55
+    assert out.loc[0, "home_odds_close"] == 1.5
+    assert out.loc[0, "draw_odds_open"] == 3.80
+    assert out.loc[0, "away_odds_close"] == 6.0
 
 
 def test_clean_frame_drops_blank_row():
@@ -90,10 +97,38 @@ def test_clean_frame_maps_b365_over_under_25():
     )
     out = clean_frame(raw, "2526")
 
+    # Pre-close only: opening and closing both fall back to B365>2.5.
+    assert out.loc[0, "over_25_odds_open"] == 1.80
+    assert out.loc[0, "under_25_odds_open"] == 2.10
     assert out.loc[0, "over_25_odds_close"] == 1.80
     assert out.loc[0, "under_25_odds_close"] == 2.10
     assert "B365>2.5" not in out.columns
     assert "B365<2.5" not in out.columns
+
+
+def test_clean_frame_prefers_closing_over_under_c_columns():
+    raw = pd.DataFrame(
+        [
+            {
+                "Date": "15/08/2025",
+                "HomeTeam": "Liverpool",
+                "AwayTeam": "Bournemouth",
+                "FTHG": 4,
+                "FTAG": 2,
+                "FTR": "H",
+                "B365>2.5": 1.80,
+                "B365<2.5": 2.10,
+                "B365C>2.5": 1.70,
+                "B365C<2.5": 2.20,
+            }
+        ]
+    )
+    out = clean_frame(raw, "2526")
+
+    assert out.loc[0, "over_25_odds_open"] == 1.80
+    assert out.loc[0, "under_25_odds_open"] == 2.10
+    assert out.loc[0, "over_25_odds_close"] == 1.70
+    assert out.loc[0, "under_25_odds_close"] == 2.20
 
 
 def test_clean_frame_falls_back_to_avg_over_under_25():
@@ -157,4 +192,6 @@ def test_clean_frame_missing_over_under_columns_is_ok():
 
     assert "over_25_odds_close" not in out.columns
     assert "under_25_odds_close" not in out.columns
+    assert "over_25_odds_open" not in out.columns
+    assert "home_odds_open" not in out.columns
     assert len(out) == 1

@@ -8,11 +8,16 @@
 # home_goals       - full-time home goals (int)
 # away_goals       - full-time away goals (int)
 # result           - "H", "D", or "A"
+# home_odds_open   - Bet365 pre-closing (opening) decimal odds for home win
+# draw_odds_open   - Bet365 pre-closing draw odds
+# away_odds_open   - Bet365 pre-closing away odds
 # home_odds_close  - closing decimal odds for home win (if present)
 # draw_odds_close  - closing decimal odds for draw (if present)
 # away_odds_close  - closing decimal odds for away win (if present)
-# over_25_odds_close  - over 2.5 goals odds (Bet365, else market average)
-# under_25_odds_close - under 2.5 goals odds (Bet365, else market average)
+# over_25_odds_open   - pre-closing over 2.5 (Bet365, else market average)
+# under_25_odds_open  - pre-closing under 2.5
+# over_25_odds_close  - closing over 2.5 (Bet365 C, else Avg C, else pre-close)
+# under_25_odds_close - closing under 2.5
 
 from pathlib import Path
 from src.config import DATA_PROCESSED, SEASON_CODES, raw_path
@@ -33,25 +38,20 @@ def _first_present(df: pd.DataFrame, candidates: list[str]) -> str | None:
     return None
 
 
+def _copy_odds(df: pd.DataFrame, out: pd.DataFrame, target: str, candidates: list[str]) -> None:
+    """Copy the first present odds column onto ``out[target]`` as numeric."""
+    raw = _first_present(df, candidates)
+    if raw is None:
+        return
+    out[target] = pd.to_numeric(df[raw], errors="coerce")
+
+
 def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
     """Turn one raw season table into the cleaned schema."""
-    # Prefer Bet365 closing odds; skip them if a season doesn't have them.
-    odds_map = {
-        "B365CH": "home_odds_close",
-        "B365CD": "draw_odds_close",
-        "B365CA": "away_odds_close",
-    }
-    # Over/under 2.5: Bet365 first, then the market average. Older seasons
-    # without either column are left without the cleaned O/U fields.
-    for target, candidates in (
-        ("over_25_odds_close", ["B365>2.5", "Avg>2.5"]),
-        ("under_25_odds_close", ["B365<2.5", "Avg<2.5"]),
-    ):
-        raw = _first_present(df, candidates)
-        if raw is not None:
-            odds_map[raw] = target
     keep = ["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", "FTR"]
-    keep += [c for c in odds_map if c in df.columns]
+    missing = [c for c in keep if c not in df.columns]
+    if missing:
+        raise KeyError(f"raw frame missing required columns: {missing}")
 
     out = df.loc[:, keep].copy()
     out = out.rename(
@@ -62,8 +62,32 @@ def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
             "FTHG": "home_goals",
             "FTAG": "away_goals",
             "FTR": "result",
-            **{raw: clean for raw, clean in odds_map.items() if raw in out.columns},
         }
+    )
+
+    # football-data.co.uk: columns without C are pre-closing; *C* are closing.
+    _copy_odds(df, out, "home_odds_open", ["B365H"])
+    _copy_odds(df, out, "draw_odds_open", ["B365D"])
+    _copy_odds(df, out, "away_odds_open", ["B365A"])
+    _copy_odds(df, out, "home_odds_close", ["B365CH"])
+    _copy_odds(df, out, "draw_odds_close", ["B365CD"])
+    _copy_odds(df, out, "away_odds_close", ["B365CA"])
+
+    # Over/under: opening from non-C; closing prefers *C* then falls back to
+    # the pre-close series when a season lacks closing totals.
+    _copy_odds(df, out, "over_25_odds_open", ["B365>2.5", "Avg>2.5"])
+    _copy_odds(df, out, "under_25_odds_open", ["B365<2.5", "Avg<2.5"])
+    _copy_odds(
+        df,
+        out,
+        "over_25_odds_close",
+        ["B365C>2.5", "AvgC>2.5", "B365>2.5", "Avg>2.5"],
+    )
+    _copy_odds(
+        df,
+        out,
+        "under_25_odds_close",
+        ["B365C<2.5", "AvgC<2.5", "B365<2.5", "Avg<2.5"],
     )
 
     out["date"] = pd.to_datetime(out["date"], dayfirst=True, format="mixed")
@@ -82,9 +106,14 @@ def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
         "home_goals",
         "away_goals",
         "result",
+        "home_odds_open",
+        "draw_odds_open",
+        "away_odds_open",
         "home_odds_close",
         "draw_odds_close",
         "away_odds_close",
+        "over_25_odds_open",
+        "under_25_odds_open",
         "over_25_odds_close",
         "under_25_odds_close",
     ]
@@ -111,4 +140,3 @@ def save_matches(df: pd.DataFrame, path: Path | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
     return path
-
