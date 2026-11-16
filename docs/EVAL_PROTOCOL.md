@@ -61,13 +61,15 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Dixon–Coles (raw) | Time-decayed Dixon–Coles 1X2 from the scoreline grid |
 | Dixon–Coles (calibrated) | Temperature-scaled 1X2; walk-forward only, after a prior-fold warm-start |
 | Elo | Rating comparator (1X2 only) |
-| Sklearn baseline | Logistic regression on pre-match features available at train time |
+| Sklearn baseline | Logistic regression on pre-match features available at train time (**market-echo** when odds are features — not an independent edge claim) |
 | Bookmaker implied | De-vigged Bet365 **closing** 1X2 (`B365CH/CD/CA`) |
 | Bookmaker opening | De-vigged Bet365 **pre-closing** 1X2 (`B365H/D/A`) when present |
+| Dixon–Coles + book blend | `dixon_coles_book_blend`: Benter log-odds fusion of raw DC with **closing** book; prior-fold OOS only |
 | Dixon–Coles O/U 2.5 | Binary line `dixon_coles_over_25` from the raw grid (`market=over_under_25`) |
 | Dixon–Coles BTTS | Binary line `dixon_coles_btts` from the raw grid (`market=btts`); model-only until a book series exists |
 | Bookmaker O/U 2.5 | Binary `bookmaker_over_25` when closing totals columns exist (`market=over_under_25`) |
 | Bookmaker O/U 2.5 open | Binary `bookmaker_over_25_open` when pre-closing totals exist |
+| DC + book O/U blend | Optional `dixon_coles_book_blend_over_25`: prior-fold log-odds blend of grid over vs closing book over |
 
 **Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid (and the `predict_matches` helper). There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
 
@@ -96,7 +98,17 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 
 **Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
 
-**Offline predictions.** `src.models.predict.predict_matches` scores a fitted Dixon–Coles model on a match table. Optional temperature is applied to 1X2 only, matching the rule above.
+**OOS Benter blend (DC + closing book).** For each gameweek fold, raw Dixon–Coles 1X2 probabilities on matches with closing odds are stored as out-of-sample predictions. A second-stage Benter blend \(c \propto \exp(\alpha \log f + \beta \log \pi)\) is fit on **prior folds only**, then applied to the current fold. The summary reports mean `blend_alpha`, `blend_beta`, and `blend_w_model = α/(α+β)`. Publish the weight even when \(w_{\text{model}} \approx 0\) (market dominates) — that is a valid scientific result, not a harness failure. The blend fuses against **closing** Bet365 for the “does the model add anything after a sharp prior?” question; opening remains a separate publish-time comparator and is not mixed into this line. Skipped until `BLEND_MIN_ROWS` (200) prior OOS pairs exist. Optional O/U blend uses the same nested protocol on grid-derived over vs `implied_over_25`.
+
+**Blend leakage checklist**
+
+- [x] Base DC probs for blend pairs are fold OOS (`date < cutoff` train only) — never in-sample fitted probs on the scored matches.
+- [x] Blend coefficients fit on prior-fold OOS pairs only; current fold is scored after the fit and appended afterward.
+- [x] Closing vs opening book lines stay separate; this blend declares closing.
+- [x] Sklearn / odds-as-features lines stay labelled market-echo, not edge.
+- [x] No tipster claim that blend “beats the closing book” without nested / paired evidence (stretch only).
+
+**Offline predictions.** `src.models.predict.predict_matches` scores a fitted Dixon–Coles model on a match table. Optional temperature is applied to 1X2 only, matching the rule above. The walk-forward blend row is a research/harness citizen; weekend UI must label it “model + market fusion” if ever shown.
 
 **Metrics**
 

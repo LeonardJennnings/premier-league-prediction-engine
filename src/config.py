@@ -35,6 +35,8 @@ XI_TUNE_HOLDOUT_SEASONS = ("2526", "2627")
 # Keep the pre-tune constant available for holdout before/after tables.
 DIXON_COLES_XI_BASELINE = 0.0019
 CALIBRATION_MIN_ROWS = 200
+# Prior-fold OOS pairs required before fitting the Benter DC+book blend.
+BLEND_MIN_ROWS = 200
 ELO_K = 20.0
 ELO_HOME_BONUS = 60.0
 ELO_INITIAL = 1500.0

@@ -19,6 +19,7 @@
 - sklearn_baseline — logistic regression on implied odds, fit on train only
 - bookmaker_implied — normalised closing Bet365 probabilities on the test rows
 - bookmaker_opening — normalised pre-closing Bet365 probabilities when `B365H/D/A` are present (separate line; do not mix with closing when claiming an edge)
+- dixon_coles_book_blend — walk-forward Benter fusion of raw Dixon–Coles with closing book (prior-fold OOS weights; see `docs/EVAL_PROTOCOL.md`)
 
 ## What good looks like
 

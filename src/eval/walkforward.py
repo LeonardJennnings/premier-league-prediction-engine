@@ -10,7 +10,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.config import CALIBRATION_MIN_ROWS, RESULTS
+from src.config import BLEND_MIN_ROWS, CALIBRATION_MIN_ROWS, RESULTS
+from src.eval.blend import (
+    apply_benter_blend,
+    apply_binary_logodds_blend,
+    fit_benter_blend,
+    fit_binary_logodds_blend,
+)
 from src.eval.calibration import (
     apply_temperature,
     fit_temperature,
@@ -91,8 +97,9 @@ def _metric_row(
     P,
     *,
     market: str = "1x2",
+    **extra,
 ) -> dict:
-    return {
+    row = {
         "run_date": run_at,
         "model": model,
         "market": market,
@@ -104,6 +111,8 @@ def _metric_row(
         "brier": round(brier_score(y_true, P), 4),
         "accuracy": round(accuracy(y_true, P), 4),
     }
+    row.update(extra)
+    return row
 
 
 def _binary_log_loss(y_true, p, eps: float = 1e-15) -> float:
@@ -123,11 +132,12 @@ def _binary_metric_row(
     p,
     *,
     market: str,
+    **extra,
 ) -> dict:
     """Score a binary market line. Brier is mean squared error, not the 1X2 Brier."""
     y = np.asarray(y_true, dtype=float)
     prob = np.clip(np.asarray(p, dtype=float), 0.0, 1.0)
-    return {
+    row = {
         "run_date": run_at,
         "model": model,
         "market": market,
@@ -139,6 +149,8 @@ def _binary_metric_row(
         "brier": round(float(np.mean((prob - y) ** 2)), 4),
         "accuracy": round(float(np.mean((prob >= 0.5) == (y >= 0.5))), 4),
     }
+    row.update(extra)
+    return row
 
 
 def _infer_market(model: str, fold_rows: pd.DataFrame, frame: pd.DataFrame) -> str:
@@ -194,21 +206,31 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
             )
             continue
 
+        def _with_blend_meta(row: dict) -> dict:
+            """Attach mean prior-fold Benter coeffs when present on by-gw rows."""
+            for col in ("blend_alpha", "blend_beta", "blend_w_model"):
+                if not fold_rows.empty and col in fold_rows.columns:
+                    values = fold_rows[col].dropna()
+                    row[col] = round(float(values.mean()), 4) if not values.empty else float("nan")
+            return row
+
         if {"p_home", "p_draw", "p_away", "result"} <= set(frame.columns):
             y_true = frame["result"].tolist()
             P = frame[["p_home", "p_draw", "p_away"]].to_numpy(dtype=float)
             rows.append(
-                {
-                    "run_date": run_at,
-                    "model": model,
-                    "market": market,
-                    "n_folds": n_folds,
-                    "n_test": len(y_true),
-                    "log_loss": round(log_loss(y_true, P), 4),
-                    "brier": round(brier_score(y_true, P), 4),
-                    "accuracy": round(accuracy(y_true, P), 4),
-                    "aggregation": "pooled",
-                }
+                _with_blend_meta(
+                    {
+                        "run_date": run_at,
+                        "model": model,
+                        "market": market,
+                        "n_folds": n_folds,
+                        "n_test": len(y_true),
+                        "log_loss": round(log_loss(y_true, P), 4),
+                        "brier": round(brier_score(y_true, P), 4),
+                        "accuracy": round(accuracy(y_true, P), 4),
+                        "aggregation": "pooled",
+                    }
+                )
             )
             continue
 
@@ -221,34 +243,38 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
             y = frame[binary_cols[0]].to_numpy(dtype=float)
             p = frame[binary_cols[1]].to_numpy(dtype=float)
             rows.append(
+                _with_blend_meta(
+                    {
+                        "run_date": run_at,
+                        "model": model,
+                        "market": market,
+                        "n_folds": n_folds,
+                        "n_test": len(y),
+                        "log_loss": round(_binary_log_loss(y, p), 4),
+                        "brier": round(float(np.mean((np.clip(p, 0.0, 1.0) - y) ** 2)), 4),
+                        "accuracy": round(
+                            float(np.mean((np.clip(p, 0.0, 1.0) >= 0.5) == (y >= 0.5))), 4
+                        ),
+                        "aggregation": "pooled",
+                    }
+                )
+            )
+            continue
+
+        rows.append(
+            _with_blend_meta(
                 {
                     "run_date": run_at,
                     "model": model,
                     "market": market,
                     "n_folds": n_folds,
-                    "n_test": len(y),
-                    "log_loss": round(_binary_log_loss(y, p), 4),
-                    "brier": round(float(np.mean((np.clip(p, 0.0, 1.0) - y) ** 2)), 4),
-                    "accuracy": round(
-                        float(np.mean((np.clip(p, 0.0, 1.0) >= 0.5) == (y >= 0.5))), 4
-                    ),
+                    "n_test": n_test_folds,
+                    "log_loss": float("nan"),
+                    "brier": float("nan"),
+                    "accuracy": float("nan"),
                     "aggregation": "pooled",
                 }
             )
-            continue
-
-        rows.append(
-            {
-                "run_date": run_at,
-                "model": model,
-                "market": market,
-                "n_folds": n_folds,
-                "n_test": n_test_folds,
-                "log_loss": float("nan"),
-                "brier": float("nan"),
-                "accuracy": float("nan"),
-                "aggregation": "pooled",
-            }
         )
     return pd.DataFrame(rows)
 
@@ -258,6 +284,7 @@ def run_walkforward(
     *,
     min_train_rows: int = MIN_TRAIN_ROWS,
     calibration_min_rows: int = CALIBRATION_MIN_ROWS,
+    blend_min_rows: int = BLEND_MIN_ROWS,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
     """Run full walk-forward; return summary, by-gameweek, and per-model prediction frames.
 
@@ -279,7 +306,9 @@ def run_walkforward(
         "poisson": [],
         "dixon_coles": [],
         "dixon_coles_calibrated": [],
+        "dixon_coles_book_blend": [],
         "dixon_coles_over_25": [],
+        "dixon_coles_book_blend_over_25": [],
         "dixon_coles_btts": [],
         "elo": [],
         "sklearn_baseline": [],
@@ -291,6 +320,15 @@ def run_walkforward(
 
     prior_dc_y: list[str] = []
     prior_dc_P: list[np.ndarray] = []
+    # Prior-fold OOS pairs for Benter blend (closing book only).
+    prior_blend_y: list[str] = []
+    prior_blend_dc: list[np.ndarray] = []
+    prior_blend_book: list[np.ndarray] = []
+    prior_ou_y: list[float] = []
+    prior_ou_dc: list[np.ndarray] = []
+    prior_ou_book: list[np.ndarray] = []
+
+    book_1x2_cols = ["implied_home", "implied_draw", "implied_away"]
 
     for train_raw, test_raw, season, gw in iter_folds(matches, min_train_rows=min_train_rows):
         train, test = features_for_fold(train_raw, test_raw)
@@ -426,6 +464,60 @@ def run_walkforward(
         prior_dc_y.extend(y_all)
         prior_dc_P.append(dc_P)
 
+        # Benter DC + closing-book blend on prior-fold OOS pairs only.
+        has_book_1x2 = (
+            test[book_1x2_cols].notna().all(axis=1).to_numpy()
+            if set(book_1x2_cols) <= set(test.columns)
+            else np.zeros(len(test), dtype=bool)
+        )
+        if (
+            prior_blend_y
+            and len(prior_blend_y) >= blend_min_rows
+            and has_book_1x2.any()
+        ):
+            weights = fit_benter_blend(
+                prior_blend_y,
+                np.vstack(prior_blend_dc),
+                np.vstack(prior_blend_book),
+            )
+            book_P_fold = test.loc[has_book_1x2, book_1x2_cols].to_numpy(dtype=float)
+            y_blend = test.loc[has_book_1x2, "result"].tolist()
+            blend_P = apply_benter_blend(
+                dc_P[has_book_1x2], book_P_fold, weights.alpha, weights.beta
+            )
+            by_gw_rows.append(
+                _metric_row(
+                    run_at,
+                    "dixon_coles_book_blend",
+                    season,
+                    gw,
+                    len(train),
+                    y_blend,
+                    blend_P,
+                    blend_alpha=round(weights.alpha, 4),
+                    blend_beta=round(weights.beta, 4),
+                    blend_w_model=round(weights.w_model, 4),
+                )
+            )
+            for i, result in enumerate(y_blend):
+                pred_records["dixon_coles_book_blend"].append(
+                    {
+                        "result": result,
+                        "p_home": blend_P[i, 0],
+                        "p_draw": blend_P[i, 1],
+                        "p_away": blend_P[i, 2],
+                        "blend_alpha": weights.alpha,
+                        "blend_beta": weights.beta,
+                        "blend_w_model": weights.w_model,
+                    }
+                )
+        if has_book_1x2.any():
+            prior_blend_y.extend(test.loc[has_book_1x2, "result"].tolist())
+            prior_blend_dc.append(dc_P[has_book_1x2])
+            prior_blend_book.append(
+                test.loc[has_book_1x2, book_1x2_cols].to_numpy(dtype=float)
+            )
+
         elo_model = fit_elo(train)
         elo_rows = [
             predict_elo(elo_model, row.home_team, row.away_team)
@@ -528,34 +620,86 @@ def run_walkforward(
                         }
                     )
 
-        if "implied_over_25" in test.columns:
-            ou_test = test.dropna(subset=["implied_over_25", "home_goals", "away_goals"])
-            if not ou_test.empty:
-                y_over = (
-                    (ou_test["home_goals"] + ou_test["away_goals"]) >= 3
-                ).astype(float)
-                p_over = ou_test["implied_over_25"].to_numpy(dtype=float)
-                n_train_ou = (
-                    int(train["implied_over_25"].notna().sum())
-                    if "implied_over_25" in train.columns
-                    else 0
+        has_ou_book = (
+            test["implied_over_25"].notna().to_numpy()
+            if "implied_over_25" in test.columns
+            else np.zeros(len(test), dtype=bool)
+        )
+        if has_ou_book.any():
+            ou_test = test.loc[has_ou_book]
+            y_over_book = (
+                (ou_test["home_goals"].to_numpy(dtype=float)
+                 + ou_test["away_goals"].to_numpy(dtype=float))
+                >= 3
+            ).astype(float)
+            p_over_book = ou_test["implied_over_25"].to_numpy(dtype=float)
+            p_over_dc_fold = np.array(
+                [row["over_25"] for row, keep in zip(dc_rows, has_ou_book) if keep],
+                dtype=float,
+            )
+            n_train_ou = (
+                int(train["implied_over_25"].notna().sum())
+                if "implied_over_25" in train.columns
+                else 0
+            )
+            by_gw_rows.append(
+                _binary_metric_row(
+                    run_at,
+                    "bookmaker_over_25",
+                    season,
+                    gw,
+                    n_train_ou,
+                    y_over_book,
+                    p_over_book,
+                    market="over_under_25",
+                )
+            )
+            for y_i, p_i in zip(y_over_book, p_over_book):
+                pred_records["bookmaker_over_25"].append(
+                    {"y_over": float(y_i), "p_over": float(p_i)}
+                )
+
+            if prior_ou_y and len(prior_ou_y) >= blend_min_rows:
+                ou_weights = fit_binary_logodds_blend(
+                    prior_ou_y,
+                    np.concatenate(prior_ou_dc),
+                    np.concatenate(prior_ou_book),
+                )
+                blend_over = apply_binary_logodds_blend(
+                    p_over_dc_fold,
+                    p_over_book,
+                    ou_weights.alpha,
+                    ou_weights.beta,
                 )
                 by_gw_rows.append(
                     _binary_metric_row(
                         run_at,
-                        "bookmaker_over_25",
+                        "dixon_coles_book_blend_over_25",
                         season,
                         gw,
-                        n_train_ou,
-                        y_over,
-                        p_over,
+                        len(train),
+                        y_over_book,
+                        blend_over,
                         market="over_under_25",
+                        blend_alpha=round(ou_weights.alpha, 4),
+                        blend_beta=round(ou_weights.beta, 4),
+                        blend_w_model=round(ou_weights.w_model, 4),
                     )
                 )
-                for y_i, p_i in zip(y_over.to_numpy(), p_over):
-                    pred_records["bookmaker_over_25"].append(
-                        {"y_over": float(y_i), "p_over": float(p_i)}
+                for y_i, p_i in zip(y_over_book, blend_over):
+                    pred_records["dixon_coles_book_blend_over_25"].append(
+                        {
+                            "y_over": float(y_i),
+                            "p_over": float(p_i),
+                            "blend_alpha": ou_weights.alpha,
+                            "blend_beta": ou_weights.beta,
+                            "blend_w_model": ou_weights.w_model,
+                        }
                     )
+
+            prior_ou_y.extend(float(v) for v in y_over_book)
+            prior_ou_dc.append(p_over_dc_fold)
+            prior_ou_book.append(p_over_book)
 
         if "implied_over_25_open" in test.columns:
             ou_open = test.dropna(
@@ -633,24 +777,34 @@ def write_walkforward_artefacts(
         "- Features: built per fold; history-dependent columns use date < fold cutoff only\n"
         "- Minimum train rows: 200\n"
         "- Models (1X2, market=1x2): naive_frequencies, poisson, dixon_coles, "
-        "dixon_coles_calibrated, elo, sklearn_baseline, bookmaker_implied "
-        "(Bet365 closing), bookmaker_opening (Bet365 pre-closing)\n"
+        "dixon_coles_calibrated, dixon_coles_book_blend, elo, sklearn_baseline, "
+        "bookmaker_implied (Bet365 closing), bookmaker_opening (Bet365 pre-closing)\n"
         "- dixon_coles_calibrated: temperature scaling fit on prior-fold "
         "Dixon–Coles 1X2 predictions only. The line is skipped until that "
         f"prior store has at least {CALIBRATION_MIN_ROWS} rows "
         "(the raw line is not copied in). Summary fold counts can therefore "
         "differ from raw Dixon–Coles; compare them on shared gameweeks.\n"
+        "- dixon_coles_book_blend: Benter log-odds fusion of raw Dixon–Coles "
+        "with de-vigged Bet365 **closing** 1X2. Coefficients (α, β) and "
+        "w_model = α/(α+β) are fit on prior-fold OOS pairs only (never "
+        "in-sample DC fitted probs). Skipped until "
+        f"{BLEND_MIN_ROWS} prior rows. Publish w_model even if ≈ 0 — that "
+        "means the market dominates. Labelled model+market fusion, not pure "
+        "model skill. sklearn_baseline remains a market-echo comparator "
+        "(odds-as-features), not an edge claim.\n"
         "- Binary markets (do not rank against 1X2): dixon_coles_over_25 "
         "(market=over_under_25) and dixon_coles_btts (market=btts) are scored "
         "from the raw scoreline grid every fold. bookmaker_over_25 uses "
         "closing totals (`implied_over_25`); bookmaker_over_25_open uses "
-        "pre-closing totals when present. Missing O/U odds drop a row from "
-        "that book comparison only. Temperature scaling does not change "
-        "O/U or BTTS.\n"
+        "pre-closing totals when present. dixon_coles_book_blend_over_25 is "
+        "an optional prior-fold log-odds blend of grid over vs closing book "
+        "over when both exist. Missing O/U odds drop a row from that book "
+        "comparison only. Temperature scaling does not change O/U or BTTS.\n"
         "- ξ (`DIXON_COLES_XI`) is a frozen config constant from nested tune "
         "(`python -m src.evaluate --mode xi_tune`); not jointly estimated. "
         "See `results/XI_TUNE.md`.\n"
-        "- Summary metrics: pooled over all scored matches (per-fold CSV for diagnosis)\n"
+        "- Summary metrics: pooled over all scored matches (per-fold CSV for diagnosis). "
+        "Blend rows also carry mean blend_alpha / blend_beta / blend_w_model.\n"
         "- Calibration plots: home-win reliability for 1X2 lines\n"
         "\n"
         "## Regenerate\n"
