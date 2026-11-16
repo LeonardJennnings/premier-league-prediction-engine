@@ -2,7 +2,7 @@
 
 Historical Premier League results and bookmaker odds are messy to turn into a fair, repeatable forecast demo. This project downloads those CSVs, cleans them, fits simple match-outcome models, evaluates them on a fixed test set against the market, and shows the results in Streamlit.
 
-This is a **forecast / engineering demo**, not a betting tipster or gambling product.
+This is a **forecast / engineering demo**, not a gambling product.
 
 ![Dashboard screenshot](docs/dashboard.png)
 
@@ -68,14 +68,16 @@ More detail: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · [docs/SCOPE.md](docs/SC
 
 ```text
 app/           Streamlit dashboard
-src/           Library code (download, clean, features, models, evaluate, pipeline)
+src/           Library code (download, clean, features, models, evaluate, jobs, pipeline)
 src/models/    Dixon–Coles, markets, Poisson, Elo, baseline, predict helper
 src/eval/      Walk-forward folds, calibration
+src/jobs/      Fit, publish, settle, precompute
 tests/         pytest suite
 data/raw/      Downloaded CSVs (gitignored)
-data/processed/  Cleaned matches (gitignored)
+data/processed/  Cleaned matches + predictions.sqlite (gitignored)
+data/reference/  Committed team-name map
 results/       Eval tables (committed); walk-forward is research SoT
-docs/          Scope, case study, eval protocol, dashboard screenshot
+docs/          Scope, case study, eval protocol, specs, notes
 SYLLABUS.md    Teaching syllabus + future-scope epics
 ```
 
@@ -111,7 +113,7 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is for a later fixtures API and can stay empty.
+`LOG_LEVEL` defaults to `INFO`. `FOOTBALL_DATA_ORG_TOKEN` is required for `publish`, `settle`, and `precompute`. Leave it empty if you only run the historical pipeline.
 
 ## Pipeline
 
@@ -122,6 +124,25 @@ python -m src.pipeline
 ```
 
 This downloads (or skips) raw CSVs, builds `data/processed/matches.csv`, fits the models, and prints a sample comparison.
+
+## Fixtures, fit, and settlement
+
+`publish` and `settle` read Premier League fixtures from football-data.org. Put `FOOTBALL_DATA_ORG_TOKEN` in `.env` before those commands. `fit` uses the local historical match table and does not call that API.
+
+```bash
+# requires FOOTBALL_DATA_ORG_TOKEN in .env
+python -m src.jobs.fit
+python -m src.jobs.publish
+python -m src.jobs.settle
+# or
+python -m src.jobs.precompute
+```
+
+`fit` writes a versioned Dixon–Coles artefact under `models/` and registers it in the prediction database. `publish` loads that artefact (the latest one, when no version is chosen), refetches the next 10 days of fixtures, maps team names, and inserts one row per match and model version. Each publish skips the fixture-cache read, so a same-day postponement or a newly listed match is visible on the next run. A successful response still overwrites `data/raw/fixtures/` for inspection. Stored kickoffs are those in `[now, now + 10 days)`. football-data.org treats `dateTo` as exclusive, so the request end date is the following day. New rows from one publish commit together. A duplicate `(match_id, model_version)` is skipped and its probabilities stay as first inserted. `precompute` runs `fit` and then `publish` as two steps. It does not settle.
+
+Probability columns are immutable after insert. `settle` refetches the kickoff span of scheduled, postponed, and already settled rows, and it skips the fixture-cache read as well. It writes full-time goals, the H/D/A result, `settled_at`, and `status`. A later `FINISHED` payload with different goals corrects the score and result. `POSTPONED` and `SUSPENDED` set status `postponed`; `CANCELLED` sets `cancelled`. A new `utcDate` updates `kickoff_utc`. Settle does not change probabilities or book columns, and it does not insert a row for a match that was never published. A revised forecast is a new model version.
+
+football-data.org names must appear in `data/reference/team_name_map.json`. An unmapped name, or a team missing from the artefact, aborts the publish batch. After mapping, publish tries to fill `book_*` from the free [football-data.co.uk fixtures list](https://www.football-data.co.uk/fixtures.csv): Bet365 1X2, plus over/under 2.5 when both prices are present, de-vigged the same way as historical closing odds. A filled row sets `book_source` to `football-data.co.uk fixtures.csv (B365)`. If the download fails, the file has no Premier League rows, or the home team, away team, and date do not match, those columns stay null.
 
 ## Evaluation
 
