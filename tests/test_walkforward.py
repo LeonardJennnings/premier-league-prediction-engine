@@ -198,6 +198,7 @@ def test_walkforward_includes_dixon_coles_and_elo():
     assert "elo" in models
     assert "poisson" in models
     assert "dixon_coles_over_25" in models
+    assert "poisson_total_over_25" in models
     assert "dixon_coles_btts" in models
     assert "dixon_coles_calibrated" not in models
     assert "bookmaker_over_25" not in models
@@ -206,13 +207,70 @@ def test_walkforward_includes_dixon_coles_and_elo():
     assert ((dc["p_over_25"] >= 0) & (dc["p_over_25"] <= 1)).all()
     assert ((dc["p_under_25"] >= 0) & (dc["p_under_25"] <= 1)).all()
     ou = summary.loc[summary["model"] == "dixon_coles_over_25"].iloc[0]
+    pt = summary.loc[summary["model"] == "poisson_total_over_25"].iloc[0]
     btts = summary.loc[summary["model"] == "dixon_coles_btts"].iloc[0]
     assert ou["market"] == "over_under_25"
+    assert pt["market"] == "over_under_25"
     assert btts["market"] == "btts"
     assert ou["aggregation"] == "pooled"
     assert not preds["dixon_coles_over_25"].empty
+    assert not preds["poisson_total_over_25"].empty
     assert not preds["dixon_coles_btts"].empty
     assert summary.loc[summary["model"] == "dixon_coles", "market"].iloc[0] == "1x2"
+
+
+def _mixed_matches_with_totals(n: int = 80) -> pd.DataFrame:
+    """Like _mixed_matches but goal totals span under and over 2.5 for logistic fit."""
+    frame = _mixed_matches(n)
+    # Cycle totals 1, 2, 3, 4 so both O/U classes appear.
+    totals = [1, 2, 3, 4]
+    homes = []
+    aways = []
+    for i in range(n):
+        t = totals[i % 4]
+        h = t // 2
+        a = t - h
+        homes.append(h)
+        aways.append(a)
+    frame["home_goals"] = homes
+    frame["away_goals"] = aways
+    # Keep 1X2 labels consistent with the new scores.
+    results = []
+    for h, a in zip(homes, aways):
+        if h > a:
+            results.append("H")
+        elif h == a:
+            results.append("D")
+        else:
+            results.append("A")
+    frame["result"] = results
+    return frame
+
+
+def test_walkforward_lab_ou_lines_and_prior_fold_calibration():
+    """Lab O/U comparators score every fold; binary temperature uses prior folds only."""
+    # Need enough expanding-window train rows for totals_logistic (>=50).
+    matches = assign_gameweeks(_mixed_matches_with_totals(80), matches_per_gw=5)
+    summary, by_gw, preds = run_walkforward(
+        matches, min_train_rows=5, calibration_min_rows=10
+    )
+    ou_models = set(summary.loc[summary["market"] == "over_under_25", "model"])
+    assert "dixon_coles_over_25" in ou_models
+    assert "poisson_total_over_25" in ou_models
+    assert "totals_logistic_over_25" in ou_models
+
+    raw = by_gw[by_gw["model"] == "poisson_total_over_25"]
+    cal = by_gw[by_gw["model"] == "poisson_total_over_25_calibrated"]
+    prior = 0
+    expected_gws: list[int] = []
+    for row in raw.itertuples(index=False):
+        if prior >= 10:
+            expected_gws.append(int(row.gameweek))
+        prior += int(row.n_test)
+    assert cal["gameweek"].astype(int).tolist() == expected_gws
+    assert len(preds["poisson_total_over_25_calibrated"]) == int(cal["n_test"].sum())
+    assert len(expected_gws) > 0
+    assert len(expected_gws) < len(raw)
 
 
 def test_calibrated_line_uses_only_prior_folds(monkeypatch):
@@ -324,6 +382,7 @@ def test_over_under_book_row_when_implied_over_present():
     }
     assert set(summary.loc[summary["market"] == "over_under_25", "model"]) >= {
         "dixon_coles_over_25",
+        "poisson_total_over_25",
         "bookmaker_over_25",
         "bookmaker_over_25_open",
     }
@@ -379,6 +438,8 @@ def test_walkforward_readme_names_new_models(tmp_path):
     assert "dixon_coles" in text
     assert "dixon_coles_calibrated" in text
     assert "dixon_coles_over_25" in text
+    assert "poisson_total_over_25" in text
+    assert "totals_logistic_over_25" in text
     assert "dixon_coles_btts" in text
     assert "elo" in text
     assert "bookmaker_opening" in text
@@ -389,6 +450,7 @@ def test_walkforward_readme_names_new_models(tmp_path):
     assert "prior" in text.lower()
     assert "pooled" in text.lower()
     assert "do not rank" in text.lower()
+    assert "lab" in text.lower()
 
 
 def test_season_gate_reports_dixon_coles_and_elo_not_calibrated():

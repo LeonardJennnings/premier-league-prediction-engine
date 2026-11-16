@@ -32,6 +32,13 @@ from src.models.dixon_coles import predict_match as predict_dixon_coles
 from src.models.elo import fit_elo
 from src.models.elo import predict_match as predict_elo
 from src.models.poisson import fit_poisson, predict_match
+from src.models.totals_lab import (
+    apply_binary_temperature,
+    fit_binary_temperature,
+    fit_totals_logistic,
+    predict_poisson_total_over_25,
+    predict_totals_logistic_over_25,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -309,6 +316,9 @@ def run_walkforward(
         "dixon_coles_book_blend": [],
         "dixon_coles_over_25": [],
         "dixon_coles_book_blend_over_25": [],
+        "poisson_total_over_25": [],
+        "poisson_total_over_25_calibrated": [],
+        "totals_logistic_over_25": [],
         "dixon_coles_btts": [],
         "elo": [],
         "sklearn_baseline": [],
@@ -327,6 +337,9 @@ def run_walkforward(
     prior_ou_y: list[float] = []
     prior_ou_dc: list[np.ndarray] = []
     prior_ou_book: list[np.ndarray] = []
+    # Prior-fold store for lab poisson-total binary temperature.
+    prior_pt_y: list[float] = []
+    prior_pt_p: list[float] = []
 
     book_1x2_cols = ["implied_home", "implied_draw", "implied_away"]
 
@@ -412,6 +425,81 @@ def run_walkforward(
             pred_records["dixon_coles_over_25"].append(
                 {"y_over": float(y_i), "p_over": float(p_i)}
             )
+
+        # Lab-only specialised O/U lines (not publish / UI defaults).
+        p_pt = np.array(
+            [
+                predict_poisson_total_over_25(dc_model, row.home_team, row.away_team)
+                for row in test.itertuples(index=False)
+            ],
+            dtype=float,
+        )
+        by_gw_rows.append(
+            _binary_metric_row(
+                run_at,
+                "poisson_total_over_25",
+                season,
+                gw,
+                len(train),
+                y_over,
+                p_pt,
+                market="over_under_25",
+            )
+        )
+        for y_i, p_i in zip(y_over, p_pt):
+            pred_records["poisson_total_over_25"].append(
+                {"y_over": float(y_i), "p_over": float(p_i)}
+            )
+
+        if prior_pt_y and len(prior_pt_y) >= calibration_min_rows:
+            t_pt = fit_binary_temperature(prior_pt_y, np.asarray(prior_pt_p, dtype=float))
+            p_pt_cal = apply_binary_temperature(p_pt, t_pt)
+            by_gw_rows.append(
+                _binary_metric_row(
+                    run_at,
+                    "poisson_total_over_25_calibrated",
+                    season,
+                    gw,
+                    len(train),
+                    y_over,
+                    p_pt_cal,
+                    market="over_under_25",
+                )
+            )
+            for y_i, p_i in zip(y_over, p_pt_cal):
+                pred_records["poisson_total_over_25_calibrated"].append(
+                    {"y_over": float(y_i), "p_over": float(p_i)}
+                )
+        prior_pt_y.extend(float(v) for v in y_over)
+        prior_pt_p.extend(float(v) for v in p_pt)
+
+        lab_logistic = fit_totals_logistic(train, dc_model)
+        if lab_logistic is not None:
+            p_tl = np.array(
+                [
+                    predict_totals_logistic_over_25(
+                        lab_logistic, dc_model, row.home_team, row.away_team
+                    )
+                    for row in test.itertuples(index=False)
+                ],
+                dtype=float,
+            )
+            by_gw_rows.append(
+                _binary_metric_row(
+                    run_at,
+                    "totals_logistic_over_25",
+                    season,
+                    gw,
+                    len(train),
+                    y_over,
+                    p_tl,
+                    market="over_under_25",
+                )
+            )
+            for y_i, p_i in zip(y_over, p_tl):
+                pred_records["totals_logistic_over_25"].append(
+                    {"y_over": float(y_i), "p_over": float(p_i)}
+                )
 
         y_btts = (
             (test["home_goals"].to_numpy(dtype=float) >= 1)
@@ -794,12 +882,18 @@ def write_walkforward_artefacts(
         "(odds-as-features), not an edge claim.\n"
         "- Binary markets (do not rank against 1X2): dixon_coles_over_25 "
         "(market=over_under_25) and dixon_coles_btts (market=btts) are scored "
-        "from the raw scoreline grid every fold. bookmaker_over_25 uses "
+        "from the raw scoreline grid every fold. Lab-only O/U comparators: "
+        "poisson_total_over_25 (independent Poisson on λ+μ from the same DC "
+        "rates), optional poisson_total_over_25_calibrated (prior-fold binary "
+        "temperature), and totals_logistic_over_25 (logistic on λ, μ, λ+μ "
+        "fit on the train fold). These lab lines never replace grid O/U on "
+        "publish or the weekend page. bookmaker_over_25 uses "
         "closing totals (`implied_over_25`); bookmaker_over_25_open uses "
         "pre-closing totals when present. dixon_coles_book_blend_over_25 is "
         "an optional prior-fold log-odds blend of grid over vs closing book "
         "over when both exist. Missing O/U odds drop a row from that book "
-        "comparison only. Temperature scaling does not change O/U or BTTS.\n"
+        "comparison only. 1X2 temperature scaling does not change grid O/U "
+        "or BTTS.\n"
         "- ξ (`DIXON_COLES_XI`) is a frozen config constant from nested tune "
         "(`python -m src.evaluate --mode xi_tune`); not jointly estimated. "
         "See `results/XI_TUNE.md`.\n"
