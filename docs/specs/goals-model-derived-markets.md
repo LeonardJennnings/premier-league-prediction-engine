@@ -96,7 +96,7 @@ From one renormalised grid:
 | BTTS | Both teams ≥ 1 goal vs otherwise |
 | Over / under 2.5 | Total goals ≥ 3 vs ≤ 2 |
 
-There are no separate classifiers for BTTS or totals. That keeps markets coherent: changing team strength moves all three surfaces together.
+There are no separate classifiers for BTTS or totals on the **product** path. That keeps markets coherent: changing team strength moves all three surfaces together. Walk-forward may also score **lab-only** specialised O/U comparators (`poisson_total_over_25`, `totals_logistic_over_25` in `src/models/totals_lab.py`); those never replace grid O/U on publish or the weekend UI without an explicit dual-labelled `model_version`.
 
 ### Calibration
 
@@ -149,6 +149,7 @@ historical matches
 |---|---|
 | `src/models/dixon_coles.py` | Fit, scoreline grid, thin 1X2 predict helper |
 | `src/models/markets.py` | Pure grid → market aggregations |
+| `src/models/totals_lab.py` | Lab-only specialised O/U 2.5 comparators (not publish defaults) |
 | `src/models/elo.py` | Elo fit / 1X2 predict |
 | `src/models/poisson.py` | Existing independent Poisson (unchanged) |
 | `src/eval/calibration.py` | Reliability plots; temperature and vector scaling |

@@ -52,6 +52,9 @@ def test_predict_matches_raw_matches_single_predict():
         "p_over_25",
     }
     assert expected <= set(out.columns)
+    # Publish path must stay on the scoreline grid — lab totals helpers are absent.
+    assert "p_poisson_total_over_25" not in out.columns
+    assert "p_totals_logistic_over_25" not in out.columns
 
     single = predict_match(model, "Alpha", "Beta")
     row = out.iloc[0]

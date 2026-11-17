@@ -65,15 +65,20 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Bookmaker implied | De-vigged Bet365 **closing** 1X2 (`B365CH/CD/CA`) |
 | Bookmaker opening | De-vigged Bet365 **pre-closing** 1X2 (`B365H/D/A`) when present |
 | Dixon–Coles + book blend | `dixon_coles_book_blend`: Benter log-odds fusion of raw DC with **closing** book; prior-fold OOS only |
-| Dixon–Coles O/U 2.5 | Binary line `dixon_coles_over_25` from the raw grid (`market=over_under_25`) |
+| Dixon–Coles O/U 2.5 | Binary line `dixon_coles_over_25` from the raw grid (`market=over_under_25`) — **product default** |
+| Poisson-total O/U 2.5 (lab) | `poisson_total_over_25`: independent Poisson on λ+μ from the same DC rates (ignores ρ) |
+| Poisson-total O/U calibrated (lab) | `poisson_total_over_25_calibrated`: prior-fold binary temperature on the lab line |
+| Totals logistic O/U 2.5 (lab) | `totals_logistic_over_25`: logistic on (λ, μ, λ+μ) fit on the train fold only |
 | Dixon–Coles BTTS | Binary line `dixon_coles_btts` from the raw grid (`market=btts`); model-only until a book series exists |
 | Bookmaker O/U 2.5 | Binary `bookmaker_over_25` when closing totals columns exist (`market=over_under_25`) |
 | Bookmaker O/U 2.5 open | Binary `bookmaker_over_25_open` when pre-closing totals exist |
 | DC + book O/U blend | Optional `dixon_coles_book_blend_over_25`: prior-fold log-odds blend of grid over vs closing book over |
 
-**Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid (and the `predict_matches` helper). There are no separate BTTS or totals classifiers. Temperature scaling is applied to 1X2 only; BTTS and O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
+**Derived markets.** 1X2, both-teams-to-score, and over/under 2.5 are read from one renormalised Dixon–Coles scoreline grid (and the `predict_matches` helper). Publish and the weekend UI keep that grid spine. Lab-only specialised O/U lines (`poisson_total_*`, `totals_logistic_over_25`) are scored in walk-forward for research; they must not silently replace grid O/U without a new dual-labelled `model_version`. Temperature scaling is applied to 1X2 only on the product path; BTTS and grid O/U stay on the raw grid. BTTS is model-only until a reliable bookmaker series is on the historical feed.
 
-**Over/under and BTTS scoring.** Walk-forward publishes pooled binary metrics for `dixon_coles_over_25` and `dixon_coles_btts` every fold, plus `bookmaker_over_25` / `bookmaker_over_25_open` when the matching implied totals column is present. Each summary / by-gameweek row carries a `market` label (`1x2`, `over_under_25`, or `btts`). Missing over/under odds drop a row from that book comparison only.
+**Over/under and BTTS scoring.** Walk-forward publishes pooled binary metrics for `dixon_coles_over_25`, lab O/U comparators, and `dixon_coles_btts` every fold, plus `bookmaker_over_25` / `bookmaker_over_25_open` when the matching implied totals column is present. Each summary / by-gameweek row carries a `market` label (`1x2`, `over_under_25`, or `btts`). Missing over/under odds drop a row from that book comparison only.
+
+**Lab O/U note.** Dixon–Coles τ reshuffles mass among 0–0 / 1–0 / 0–1 / 1–1 but preserves O/U 2.5 mass at fixed λ, μ. So `poisson_total_over_25` ≈ grid O/U up to finite-grid truncation — useful as a hygiene check, not a promotion candidate. The line that can diverge is `totals_logistic_over_25`. See `docs/notes/2026-11-16-ou-lab-decision.md` for the walk-forward decision.
 
 **Do not rank binary markets against 1X2.** Binary O/U and BTTS log loss are two-class scores. 1X2 log loss is a three-class score. Those numbers are not comparable; filter on `market` (or the model name suffix) and never sort the full CSV as one league table.
 
