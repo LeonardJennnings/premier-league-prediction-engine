@@ -248,6 +248,61 @@ def test_calibrated_line_uses_only_prior_folds(monkeypatch):
     assert len(expected_gws) < len(raw)
 
 
+def test_benter_blend_uses_only_prior_folds(monkeypatch):
+    from src.eval.blend import fit_benter_blend
+
+    seen_lengths: list[int] = []
+
+    def _spy(y_true, P_model, P_book):
+        seen_lengths.append(len(list(y_true)))
+        return fit_benter_blend(y_true, P_model, P_book)
+
+    monkeypatch.setattr("src.eval.walkforward.fit_benter_blend", _spy)
+
+    matches = assign_gameweeks(_mixed_matches(24), matches_per_gw=4)
+    summary, by_gw, preds = run_walkforward(
+        matches, min_train_rows=4, blend_min_rows=8
+    )
+    book = by_gw[by_gw["model"] == "bookmaker_implied"]
+    blend = by_gw[by_gw["model"] == "dixon_coles_book_blend"]
+    prior = 0
+    expected_gws: list[int] = []
+    expected_prior: list[int] = []
+    for row in book.itertuples(index=False):
+        if prior >= 8:
+            expected_gws.append(int(row.gameweek))
+            expected_prior.append(prior)
+        prior += int(row.n_test)
+
+    assert blend["gameweek"].astype(int).tolist() == expected_gws
+    assert seen_lengths == expected_prior
+    assert len(expected_gws) > 0
+    assert "blend_w_model" in blend.columns
+    assert blend["blend_w_model"].notna().all()
+    assert "dixon_coles_book_blend" in set(summary["model"])
+    blend_sum = summary.loc[summary["model"] == "dixon_coles_book_blend"].iloc[0]
+    assert blend_sum["market"] == "1x2"
+    assert pd.notna(blend_sum["blend_w_model"])
+    assert len(preds["dixon_coles_book_blend"]) == int(blend["n_test"].sum())
+
+
+def test_benter_ou_blend_row_when_book_over_present():
+    frame = _mixed_matches(24)
+    frame["implied_over_25"] = 0.55
+    matches = assign_gameweeks(frame, matches_per_gw=4)
+    summary, by_gw, _ = run_walkforward(
+        matches, min_train_rows=4, blend_min_rows=8
+    )
+    assert "dixon_coles_book_blend_over_25" in set(summary["model"])
+    ou_blend = by_gw[by_gw["model"] == "dixon_coles_book_blend_over_25"]
+    assert not ou_blend.empty
+    assert (ou_blend["market"] == "over_under_25").all()
+    assert ou_blend["blend_w_model"].notna().all()
+    row = summary.loc[summary["model"] == "dixon_coles_book_blend_over_25"].iloc[0]
+    assert row["market"] == "over_under_25"
+    assert pd.notna(row["blend_w_model"])
+
+
 def test_over_under_book_row_when_implied_over_present():
     frame = _mixed_matches(20)
     frame["implied_over_25"] = 0.55
@@ -328,6 +383,9 @@ def test_walkforward_readme_names_new_models(tmp_path):
     assert "elo" in text
     assert "bookmaker_opening" in text
     assert "bookmaker_over_25_open" in text
+    assert "dixon_coles_book_blend" in text
+    assert "w_model" in text
+    assert "fusion" in text.lower()
     assert "prior" in text.lower()
     assert "pooled" in text.lower()
     assert "do not rank" in text.lower()
