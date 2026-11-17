@@ -176,9 +176,12 @@ python -m src.evaluate --mode season
 
 # Gameweek walk-forward (primary research protocol; slower)
 python -m src.evaluate --mode walkforward
+
+# Nested ξ tune (older folds → freeze → recent holdout)
+python -m src.evaluate --mode xi_tune
 ```
 
-Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. Walk-forward scores Dixon–Coles (raw and temperature-calibrated 1X2), Elo, independent Poisson, book 1X2, plus binary Dixon–Coles over/under 2.5 and BTTS from the same grid, and book over/under 2.5 when those columns exist. Binary market rows are labelled `market=over_under_25` / `market=btts` and must not be ranked against 1X2 log loss. See [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) and `results/EVAL_README.md`.
+Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walkforward_*.csv`, calibration plots, and `results/WALKFORWARD.md`. Walk-forward scores Dixon–Coles (raw and temperature-calibrated 1X2), Elo, independent Poisson, book 1X2 (closing + opening), plus binary Dixon–Coles over/under 2.5 and BTTS from the same grid, and book over/under 2.5 when those columns exist. Binary market rows are labelled `market=over_under_25` / `market=btts` and must not be ranked against 1X2 log loss. ξ tune writes `results/xi_tune_*.csv` and `results/XI_TUNE.md` (see nested protocol in [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md)). See also `results/EVAL_README.md`.
 
 ## Results
 

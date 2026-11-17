@@ -75,7 +75,24 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 
 **Do not rank binary markets against 1X2.** Binary O/U and BTTS log loss are two-class scores. 1X2 log loss is a three-class score. Those numbers are not comparable; filter on `market` (or the model name suffix) and never sort the full CSV as one league table.
 
-**Time decay (ξ).** Dixon–Coles match weights are \(e^{-\xi t}\) with \(t\) in days. ξ is a fixed config constant (`DIXON_COLES_XI`, about a one-year half-life). It is not jointly estimated with attack, defence, home advantage, or ρ.
+**Time decay (ξ).** Dixon–Coles match weights are \(e^{-\xi t}\) with \(t\) in days. ξ is a **frozen config constant** (`DIXON_COLES_XI`), not jointly estimated with attack, defence, home advantage, or ρ. The value is chosen by the nested protocol below (not by in-likelihood MLE).
+
+### Nested ξ tune (hyperparameter selection)
+
+ξ is selected on **older** walk-forward folds and frozen before scoring a **held-out recent** era. This avoids picking the decay rate on the same folds advertised as the headline scorecard.
+
+| | |
+|---|---|
+| Command | `python -m src.evaluate --mode xi_tune` |
+| Candidates | `XI_TUNE_CANDIDATES` in `src/config.py` |
+| Tune era | Folds with `season_code` in `XI_TUNE_SEASONS` (default `2223`, `2324`, `2425`) |
+| Holdout era | Folds with `season_code` in `XI_TUNE_HOLDOUT_SEASONS` (default `2526`, `2627`) — **not** used for selection |
+| Selection rule | Lowest pooled 1X2 log loss on the tune era; ties → nearer baseline ξ, then smaller ξ |
+| Freeze | Winner written to `DIXON_COLES_XI` with a comment pointing at `results/XI_TUNE.md` |
+| Holdout report | DC at baseline ξ, DC at frozen ξ, and closing `bookmaker_implied` on the holdout matches |
+| Artefacts | `results/xi_tune_candidates.csv`, `results/xi_tune_holdout.csv`, `results/XI_TUNE.md` |
+
+**Leakage rules for ξ.** Do not retune on holdout or on the full walk-forward headline after freezing. Do not claim the model beats the closing book unless the holdout numbers show it (and even then prefer nested / paired evidence before public claims).
 
 **Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
 
