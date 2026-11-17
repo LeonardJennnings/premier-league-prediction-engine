@@ -2,31 +2,48 @@
 /**
  * Weekend slate — Version C order:
  * brand + short lorem → THIS WEEKEND → (peeks live on Past / Method pages) → disclaimer in layout.
- * Build-time fetch + client refresh via LiveWeekend so dist is not forever sample-only.
+ * Build-time preference: live API → committed upcoming-snapshot.json → labelled sample.
+ * LiveWeekend still refreshes from the API after hydrate when reachable.
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
 import LiveWeekend from "../components/LiveWeekend";
 import { fetchUpcoming, getApiBase } from "../lib/api";
 import { SAMPLE_UPCOMING } from "../lib/sample";
+import { UPCOMING_SNAPSHOT, hasUpcomingSnapshot } from "../lib/snapshot";
 
 const apiBase = getApiBase();
 const result = await fetchUpcoming();
 
-const usingSample = !result.ok || result.data.matches.length === 0;
-const matches = usingSample
-  ? SAMPLE_UPCOMING
-  : result.data.matches;
-const modelVersion = usingSample
-  ? "sample-local"
-  : result.data.model_version;
+const liveOk = result.ok && result.data.matches.length > 0;
+const snapshotOk = !liveOk && hasUpcomingSnapshot();
+const usingSample = !liveOk && !snapshotOk;
+
+const matches = liveOk
+  ? result.data.matches
+  : snapshotOk
+    ? UPCOMING_SNAPSHOT.matches
+    : SAMPLE_UPCOMING;
+const modelVersion = liveOk
+  ? result.data.model_version
+  : snapshotOk
+    ? UPCOMING_SNAPSHOT.model_version
+    : "sample-local";
 
 let notice: string | null = null;
-if (!result.ok) {
+if (liveOk) {
+  notice = null;
+} else if (snapshotOk) {
+  notice = !result.ok
+    ? result.status === 0
+      ? `API unreachable at ${apiBase}. Showing committed publish snapshot.`
+      : `API ${result.status}: ${result.detail}. Showing committed publish snapshot.`
+    : "Live API returned no upcoming rows. Showing committed publish snapshot.";
+} else if (!result.ok) {
   notice =
     result.status === 0
       ? `API unreachable at ${apiBase}. Showing sample slate.`
       : `API ${result.status}: ${result.detail}. Showing sample slate.`;
-} else if (result.data.matches.length === 0) {
+} else {
   notice = "No upcoming matches published yet. Showing sample slate.";
 }
 ---
