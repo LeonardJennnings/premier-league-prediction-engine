@@ -138,7 +138,7 @@ export default function LiveWeekend({
       } catch {
         if (!cancelled) {
           setRefreshNote(
-            "Live refresh unreachable — keeping build-time slate (sample if API was down at build).",
+            "Live refresh unreachable — keeping build-time slate (API snapshot or sample).",
           );
         }
       }

@@ -27,15 +27,26 @@ API_CORS_ORIGINS=http://localhost:4321,http://127.0.0.1:4321
 
 ## Freshness (SSG + light client refresh)
 
-Pages fetch the API **at build time**. If the API is down or empty during `astro build`, HTML ships with a **labelled sample** slate / peeks.
+Pages fetch the API **at build time**. Weekend preference order:
 
-To avoid a permanently sample-only `dist/`:
+1. **Live API** — `GET /v1/predictions/upcoming` when reachable and non-empty
+2. **Committed snapshot** — `src/data/upcoming-snapshot.json` (real publish export; not sample)
+3. **Labelled sample** — `src/lib/sample.ts` only when both of the above are empty/missing
 
-1. **Client refresh (default)** — Weekend (`LiveWeekend`), Past peeks (`LivePastPeeks`), and Method peeks (`MethodPeeks`) re-fetch `PUBLIC_PREDICTIONS_API_BASE` after hydrate. When the live API returns rows, the island replaces build-time sample data. CORS must allow the site origin.
-2. **Rebuild on publish** — Still rebuild (or re-deploy) after publish/settle so:
+Past peeks still fall back to sample settled rows when the store has no settled weeks.
+
+To keep `dist/` off the sample weekend slate when the API is not running at build (Cursor publish-app, static host):
+
+1. After `python -m src.jobs.precompute` (or `publish`), run:
+   ```bash
+   python scripts/export_upcoming_snapshot.py
+   ```
+   Commit the updated `web/src/data/upcoming-snapshot.json`.
+2. **Client refresh** — Weekend (`LiveWeekend`), Past peeks (`LivePastPeeks`), and Method peeks (`MethodPeeks`) re-fetch `PUBLIC_PREDICTIONS_API_BASE` after hydrate when a live API exists. CORS must allow the site origin.
+3. **Rebuild on publish** — Still rebuild (or re-deploy) after refreshing the snapshot / settle so:
    - `/past/[iso_week]` static paths include new ISO weeks (`getStaticPaths`)
    - First paint / no-JS viewers see real rows without waiting on the island
-3. **Ideal publish recipe** — API up → `cd web && npm run build` with `PUBLIC_PREDICTIONS_API_BASE` pointing at that API → deploy `dist/` → keep API reachable for client refresh.
+4. **Ideal recipe with live API** — API up → export snapshot (optional but durable) → `cd web && npm run build` with `PUBLIC_PREDICTIONS_API_BASE` → deploy `dist/` → keep API reachable for client refresh when you have one.
 
 ## Run locally
 
