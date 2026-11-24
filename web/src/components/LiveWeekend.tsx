@@ -116,7 +116,7 @@ export default function LiveWeekend({
           headers: { Accept: "application/json" },
         });
         if (!res.ok) {
-          if (!cancelled) {
+          if (!cancelled && !initialNotice) {
             setRefreshNote(
               initialMatches.length > 0
                 ? `Live refresh skipped (API ${res.status}). Showing build-time slate.`
@@ -145,11 +145,13 @@ export default function LiveWeekend({
         setRefreshNote("Refreshed from live API after load.");
       } catch {
         if (!cancelled) {
-          setRefreshNote(
-            initialMatches.length > 0
-              ? "Live refresh unreachable — keeping build-time slate."
-              : "Live refresh unreachable.",
-          );
+          if (!initialNotice) {
+            setRefreshNote(
+              initialMatches.length > 0
+                ? "Live refresh unreachable — keeping build-time slate."
+                : "Live refresh unreachable.",
+            );
+          }
         }
       }
     }
@@ -158,7 +160,7 @@ export default function LiveWeekend({
     return () => {
       cancelled = true;
     };
-  }, [apiBase, initialMatches]);
+  }, [apiBase, initialMatches, initialNotice]);
 
   return (
     <div className="match-slate">
