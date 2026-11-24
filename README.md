@@ -146,6 +146,8 @@ Probability columns are immutable after insert. `settle` refetches the kickoff s
 
 football-data.org names must appear in `data/reference/team_name_map.json`. An unmapped name, or a team missing from the artefact, aborts the publish batch. After mapping, publish tries to fill `book_*` from the free [football-data.co.uk fixtures list](https://www.football-data.co.uk/fixtures.csv): Bet365 1X2, plus over/under 2.5 when both prices are present, de-vigged the same way as historical closing odds. A filled row sets `book_source` to `football-data.co.uk fixtures.csv (B365)`. If the download fails, the file has no Premier League rows, or the home team, away team, and date do not match, those columns stay null.
 
+Snapshot freshness, the manual Actions refresh, and the shared `FOOTBALL_DATA_ORG_TOKEN` name are in [docs/OPS_CADENCE.md](docs/OPS_CADENCE.md). CI does not read that token.
+
 ## Predictions API
 
 Read-only FastAPI surface over the SQLite prediction store (no fit/predict on the request path).
