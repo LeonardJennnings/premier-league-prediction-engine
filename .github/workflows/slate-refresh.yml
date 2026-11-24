@@ -1,0 +1,82 @@
+# Manual slate refresh. Not part of CI, and not a cron.
+# Publish and settle need the Actions secret FOOTBALL_DATA_ORG_TOKEN.
+# Those steps print TOKEN_PRESENT=yes or a missing-secret error. They do not
+# print the value, commit a snapshot, or keep predictions.sqlite for the next run.
+# See docs/OPS_CADENCE.md.
+
+name: Slate refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: freshness (no token), publish (refit + upcoming export), settle (scores + scorecard export)
+        type: choice
+        options:
+          - freshness
+          - publish
+          - settle
+        default: freshness
+
+permissions:
+  contents: read
+
+jobs:
+  freshness:
+    name: Snapshot freshness
+    if: inputs.mode == 'freshness'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/check_snapshot_freshness.py
+
+  publish:
+    name: Publish slate
+    if: inputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Refit, publish, export upcoming snapshot
+        id: refresh
+        env:
+          FOOTBALL_DATA_ORG_TOKEN: ${{ secrets.FOOTBALL_DATA_ORG_TOKEN }}
+        run: python scripts/refresh_slate.py --mode publish
+      - name: Upload upcoming snapshot
+        if: steps.refresh.conclusion == 'success' || steps.refresh.conclusion == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: slate-publish
+          path: web/src/data/upcoming-snapshot.json
+          if-no-files-found: warn
+
+  settle:
+    name: Settle ledger
+    if: inputs.mode == 'settle'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Settle and export scorecard
+        id: refresh
+        env:
+          FOOTBALL_DATA_ORG_TOKEN: ${{ secrets.FOOTBALL_DATA_ORG_TOKEN }}
+        run: python scripts/refresh_slate.py --mode settle
+      - name: Upload scorecard snapshot
+        if: steps.refresh.conclusion == 'success' || steps.refresh.conclusion == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: slate-settle
+          path: web/src/data/scorecard-snapshot.json
+          if-no-files-found: warn

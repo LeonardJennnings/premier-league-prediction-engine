@@ -48,6 +48,8 @@ To keep `dist/` off the sample weekend slate when the API is not running at buil
    - First paint / no-JS viewers see real rows without waiting on the island
 4. **Ideal recipe with live API** — API up → export snapshot (optional but durable) → `cd web && npm run build` with `PUBLIC_PREDICTIONS_API_BASE` → deploy `dist/` → keep API reachable for client refresh when you have one.
 
+From the repo root, `python scripts/check_snapshot_freshness.py` reads `web/src/data/upcoming-snapshot.json` and exits 2 when every kickoff is already in the past. The check uses that file only. After `python -m src.jobs.settle` on a machine that holds the ledger, `python scripts/export_scorecard_snapshot.py` writes `web/src/data/scorecard-snapshot.json`. Past pages still read the live API, then the labelled sample. Cadence and the Actions secret name: [`docs/OPS_CADENCE.md`](../docs/OPS_CADENCE.md).
+
 ## Run locally
 
 ```bash
