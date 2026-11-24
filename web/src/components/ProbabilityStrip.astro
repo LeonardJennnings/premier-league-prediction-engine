@@ -1,4 +1,5 @@
 ---
+import { emptyStripCopy } from "../lib/format";
 import { pctWidths } from "../lib/metrics";
 
 interface Props {
@@ -27,7 +28,7 @@ const aria = missing
   {
     missing ? (
       <div class="bar empty" role="img" aria-label={aria}>
-        <span class="empty-copy">No book line</span>
+        <span class="empty-copy">{emptyStripCopy(kind)}</span>
       </div>
     ) : (
       <div

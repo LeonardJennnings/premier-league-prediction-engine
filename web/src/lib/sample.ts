@@ -1,5 +1,5 @@
 /**
- * Lorem / sample fixtures for empty-API local preview.
+ * Labelled sample fixtures for empty-API local preview.
  * Not production data — do not treat these as walk-forward eval truth.
  */
 
