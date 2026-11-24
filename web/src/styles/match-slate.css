@@ -169,6 +169,12 @@
   font-size: 0.68rem;
 }
 
+.match-slate .empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
 .match-slate .refresh-note {
   margin: 0 0 12px;
   font-size: 0.72rem;

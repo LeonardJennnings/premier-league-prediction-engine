@@ -1,7 +1,7 @@
 ---
 /**
  * How-it-works — quiet slide sections (Theme 4).
- * Copy uses lorem for placeholders; method outline is plain language.
+ * Method outline is plain language.
  * Counted peeks bind settled-store summaries (same honesty as Past).
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
@@ -40,8 +40,8 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
   active="how"
 >
   <p class="lead">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor.
-    <span class="lorem">Ut enim ad minim veniam — method notes, not tips.</span>
+    How the weekend numbers are made.
+    <span class="sub">Data, a goals model, walk-forward checks, and a book column when a line exists.</span>
   </p>
 
   <MethodPeeks
@@ -62,8 +62,8 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
   <section class="slide" aria-labelledby="s2">
     <h2 class="section" id="s2">Data</h2>
     <p>
-      Historical results and closing odds from public sources (football-data.co.uk history; football-data.org fixtures).
-      Lorem ipsum dolor sit amet for any temporary gaps in the pipeline notes.
+      Historical results and closing odds come from football-data.co.uk. Upcoming fixtures come from football-data.org.
+      When that free book file has no Premier League rows, the book column stays empty.
     </p>
   </section>
 

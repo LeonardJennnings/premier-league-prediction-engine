@@ -1,59 +1,44 @@
 ---
 /**
- * Weekend slate — Version C order:
- * brand + short lorem → THIS WEEKEND → (peeks live on Past / Method pages) → disclaimer in layout.
- * Build-time preference: live API → committed upcoming-snapshot.json → labelled sample.
- * LiveWeekend still refreshes from the API after hydrate when reachable.
+ * Weekend slate.
+ * Preference: live API rows still to kick off → committed snapshot rows still
+ * to kick off → labelled sample. A real snapshot that has fully kicked off
+ * stays empty rather than swapping in sample fixtures.
+ * LiveWeekend refreshes from the API after hydrate when reachable.
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
 import LiveWeekend from "../components/LiveWeekend";
 import { fetchUpcoming, getApiBase } from "../lib/api";
 import { SAMPLE_UPCOMING } from "../lib/sample";
+import { chooseWeekendSlate } from "../lib/slate";
 import { UPCOMING_SNAPSHOT, hasUpcomingSnapshot } from "../lib/snapshot";
 
 const apiBase = getApiBase();
 const result = await fetchUpcoming();
-
-const liveOk = result.ok && result.data.matches.length > 0;
-const snapshotOk = !liveOk && hasUpcomingSnapshot();
-const usingSample = !liveOk && !snapshotOk;
-
-const matches = liveOk
-  ? result.data.matches
-  : snapshotOk
-    ? UPCOMING_SNAPSHOT.matches
-    : SAMPLE_UPCOMING;
-const modelVersion = liveOk
-  ? result.data.model_version
-  : snapshotOk
-    ? UPCOMING_SNAPSHOT.model_version
-    : "sample-local";
-
-let notice: string | null = null;
-if (liveOk) {
-  notice = null;
-} else if (snapshotOk) {
-  notice = !result.ok
-    ? result.status === 0
-      ? `API unreachable at ${apiBase}. Showing committed publish snapshot.`
-      : `API ${result.status}: ${result.detail}. Showing committed publish snapshot.`
-    : "Live API returned no upcoming rows. Showing committed publish snapshot.";
-} else if (!result.ok) {
-  notice =
-    result.status === 0
-      ? `API unreachable at ${apiBase}. Showing sample slate.`
-      : `API ${result.status}: ${result.detail}. Showing sample slate.`;
-} else {
-  notice = "No upcoming matches published yet. Showing sample slate.";
-}
+const slate = chooseWeekendSlate({
+  nowMs: Date.now(),
+  apiBase,
+  live: result.ok
+    ? {
+        ok: true,
+        modelVersion: result.data.model_version,
+        matches: result.data.matches,
+      }
+    : { ok: false, status: result.status, detail: result.detail },
+  snapshot: hasUpcomingSnapshot()
+    ? {
+        modelVersion: UPCOMING_SNAPSHOT.model_version,
+        matches: UPCOMING_SNAPSHOT.matches,
+      }
+    : null,
+  sampleMatches: SAMPLE_UPCOMING,
+});
 ---
 
 <BaseLayout title="This weekend — Premier League Prediction Engine" active="weekend">
   <p class="lead">
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.
-    <span class="lorem"
-      >Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.</span
-    >
+    Home, draw, and away probabilities for Premier League matches still to kick off, with the book beside the model when a line exists.
+    <span class="sub">Numbers are stored before kickoff. Misses stay on the past scorecard.</span>
   </p>
 
   <section class="slate" aria-labelledby="weekend-heading">
@@ -61,9 +46,9 @@ if (liveOk) {
     <LiveWeekend
       client:load
       apiBase={apiBase}
-      initialMatches={matches}
-      initialModelVersion={modelVersion}
-      initialNotice={notice}
+      initialMatches={slate.matches}
+      initialModelVersion={slate.modelVersion}
+      initialNotice={slate.notice}
     />
   </section>
 </BaseLayout>

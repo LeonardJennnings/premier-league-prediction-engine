@@ -4,8 +4,9 @@
  */
 import { useEffect, useState } from "react";
 import type { MatchPrediction } from "../lib/types";
-import { formatKickoff, secondaryMarketsLine } from "../lib/format";
+import { emptyStripCopy, formatKickoff, secondaryMarketsLine } from "../lib/format";
 import { pctWidths } from "../lib/metrics";
+import { futureMatches } from "../lib/slate";
 
 type Props = {
   apiBase: string;
@@ -38,7 +39,7 @@ function ProbabilityStrip({ kind, home, draw, away }: StripProps) {
       </span>
       {missing ? (
         <div className="bar empty" role="img" aria-label={aria}>
-          <span className="empty-copy">No book line</span>
+          <span className="empty-copy">{emptyStripCopy(kind)}</span>
         </div>
       ) : (
         <div
@@ -115,9 +116,11 @@ export default function LiveWeekend({
           headers: { Accept: "application/json" },
         });
         if (!res.ok) {
-          if (!cancelled) {
+          if (!cancelled && !initialNotice) {
             setRefreshNote(
-              `Live refresh skipped (API ${res.status}). Showing build-time slate.`,
+              initialMatches.length > 0
+                ? `Live refresh skipped (API ${res.status}). Showing build-time slate.`
+                : `Live refresh skipped (API ${res.status}).`,
             );
           }
           return;
@@ -127,19 +130,28 @@ export default function LiveWeekend({
           matches: MatchPrediction[];
         };
         if (cancelled) return;
-        if (!data.matches || data.matches.length === 0) {
-          setRefreshNote("Live API returned an empty slate — keeping build-time rows.");
+        const upcoming = futureMatches(data.matches ?? [], Date.now());
+        if (upcoming.length === 0) {
+          setRefreshNote(
+            initialMatches.length > 0
+              ? "Live API returned an empty slate — keeping build-time rows still to kick off."
+              : "Live API returned an empty slate.",
+          );
           return;
         }
-        setMatches(data.matches);
+        setMatches(upcoming);
         setModelVersion(data.model_version);
         setNotice(null);
         setRefreshNote("Refreshed from live API after load.");
       } catch {
         if (!cancelled) {
-          setRefreshNote(
-            "Live refresh unreachable — keeping build-time slate (API snapshot or sample).",
-          );
+          if (!initialNotice) {
+            setRefreshNote(
+              initialMatches.length > 0
+                ? "Live refresh unreachable — keeping build-time slate."
+                : "Live refresh unreachable.",
+            );
+          }
         }
       }
     }
@@ -148,7 +160,7 @@ export default function LiveWeekend({
     return () => {
       cancelled = true;
     };
-  }, [apiBase]);
+  }, [apiBase, initialMatches, initialNotice]);
 
   return (
     <div className="match-slate">
@@ -167,9 +179,11 @@ export default function LiveWeekend({
         {" — "}
         API <code>{apiBase}</code>
       </p>
-      {matches.map((m) => (
-        <MatchCard key={m.match_id} match={m} />
-      ))}
+      {matches.length === 0 ? (
+        <p className="empty">No matches still to kick off.</p>
+      ) : (
+        matches.map((m) => <MatchCard key={m.match_id} match={m} />)
+      )}
     </div>
   );
 }
