@@ -103,6 +103,24 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 
 **Leakage rules for ξ.** Do not retune on holdout or on the full walk-forward headline after freezing. Do not claim the model beats the closing book unless the holdout numbers show it (and even then prefer nested / paired evidence before public claims).
 
+### Thin-data prior (one strength)
+
+A club with few matches is pulled toward a starting attack and defence. A club with no match in the previous season starts lower than a club that already has a history. The fraction is fixed (`THIN_PRIOR_PROMOTED_FACTOR`). It is not searched. The only searched number is the strength (`THIN_PRIOR_CANDIDATES`).
+
+| | |
+|---|---|
+| Command | `python -m src.evaluate --mode thin_prior` |
+| Candidates | `THIN_PRIOR_CANDIDATES` in `src/config.py` |
+| Setting era | Seasons `2223`, `2324`, `2425`. These already chose the time-decay setting, so they pick this strength and are not a clean test of it |
+| Later era | Seasons `2526`, `2627`. Scored after the strength is frozen. Not used to pick it |
+| Selection rule | Lowest scoreline log loss on early matches (a club's first eight of the season). Ties keep the smaller strength |
+| Stop rule | `docs/experiments/2026-11-25-thin-data-prior.md`. Drop if early-match scoreline log loss is not lower on the later seasons, or if overall scoreline log loss is higher, or if overall home/draw/away log loss is higher |
+| Artefacts | `results/THIN_DATA_PRIOR.md`, `results/thin_prior_candidates.csv`, `results/thin_prior_paired.csv`, `results/thin_prior_matches.csv` |
+
+Each scored round is fit only on earlier matches. The published fit keeps the previous penalty when the stop rule drops the change. The live record is not a tuning set.
+
+The run on 25 Nov 2026 kept strength 32. The committed `results/walkforward_*` tables were scored before that change, with the previous penalty. `results/THIN_DATA_PRIOR.md` is the measurement of the change. A later walk-forward run will score Dixon-Coles at strength 32. The model file already committed under `models/` is the previous fit. The next fit uses strength 32.
+
 **Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
 
 **OOS Benter blend (DC + closing book).** For each gameweek fold, raw Dixon–Coles 1X2 probabilities on matches with closing odds are stored as out-of-sample predictions. A second-stage Benter blend \(c \propto \exp(\alpha \log f + \beta \log \pi)\) is fit on **prior folds only**, then applied to the current fold. The summary reports mean `blend_alpha`, `blend_beta`, and `blend_w_model = α/(α+β)`. Publish the weight even when \(w_{\text{model}} \approx 0\) (market dominates) — that is a valid scientific result, not a harness failure. The blend fuses against **closing** Bet365 for the “does the model add anything after a sharp prior?” question; opening remains a separate publish-time comparator and is not mixed into this line. Skipped until `BLEND_MIN_ROWS` (200) prior OOS pairs exist. Optional O/U blend uses the same nested protocol on grid-derived over vs `implied_over_25`.

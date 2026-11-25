@@ -81,8 +81,8 @@ Match age \(t\) in **days** before the as-of date is weighted by \(\phi(t)=e^{-\
 |---|---|
 | Invalid ρ (τ ≤ 0) | Optimiser bounds keep ρ inside the admissible interval implied by every training match, so the weighted log-likelihood never hits −∞ |
 | Relative attack/defence drift | Mean attack fixed at 1 |
-| Promoted / thin-history teams | L2 shrinkage toward the league mean, stronger when a team has few matches |
-| Teams absent from the fit | League-average attack and defence at predict time |
+| Promoted / thin-history teams | One strength pulls a short history toward the other clubs. A club with no match in the previous season starts lower. The kept strength is 32 (`results/THIN_DATA_PRIOR.md`). Strength 0 leaves the old small L2 penalty |
+| Teams absent from the fit | New-club start when that strength is on. Attack and defence of 1 when it is off |
 | Finite scoreline grid | Truncate at a maximum goals value (default 8), apply τ, then renormalise |
 | Optimiser failure | Rare path: log and fall back to the nested independent-Poisson grid (ρ = 0) so evaluation continues |
 

@@ -28,6 +28,7 @@ from tests.test_walkforward import _mixed_matches
 
 _TUNING_MODULES = (
     "src/eval/xi_tune.py",
+    "src/eval/thin_prior.py",
     "src/eval/calibration.py",
     "src/eval/blend.py",
     "src/eval/walkforward.py",

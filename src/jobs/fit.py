@@ -45,9 +45,10 @@ def fit_and_save(
     model = fit_dixon_coles(matches, as_of=as_of)
     hyperparams = {
         "xi": float(model.xi),
-        "l2": float(DIXON_COLES_L2),
+        "l2": 0.0 if float(model.prior_kappa) > 0.0 else float(DIXON_COLES_L2),
         "max_goals": int(DIXON_COLES_MAX_GOALS),
         "temperature": float(temperature),
+        "prior_kappa": float(model.prior_kappa),
         # Hash of the rows the fit was allowed to see. The raw CSV is not committed.
         "training_data_sha256": _training_data_hash(matches, as_of),
         # Stored for the lab. Publish does not apply this to the public row.

@@ -11,7 +11,13 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.special import gammaln
 
-from src.config import DIXON_COLES_L2, DIXON_COLES_MAX_GOALS, DIXON_COLES_XI
+from src.config import (
+    DIXON_COLES_L2,
+    DIXON_COLES_MAX_GOALS,
+    DIXON_COLES_PRIOR_KAPPA,
+    DIXON_COLES_XI,
+    THIN_PRIOR_PROMOTED_FACTOR,
+)
 from src.models.markets import markets_from_grid
 
 logger = logging.getLogger(__name__)
@@ -31,6 +37,11 @@ class DixonColesModel:
     rho: float
     xi: float
     as_of: pd.Timestamp | None = None
+    # 0 means the small L2 penalty is the only pull toward the average.
+    prior_kappa: float = 0.0
+    # Used for a club the fit has not seen, and only when prior_kappa > 0.
+    new_club_attack: float = 1.0
+    new_club_defence: float = 1.0
 
 
 def tau(home_goals: int, away_goals: int, lam: float, mu: float, rho: float) -> float:
@@ -116,6 +127,24 @@ def score_table_from_rates(
     }
 
 
+def _stored_rate(
+    model: DixonColesModel,
+    rates: dict[str, float],
+    team: str,
+    new_club_rate: float,
+) -> float:
+    """Rate for a club in the fit, or a starting rate when the fit has not seen them.
+
+    With the prior off, an unseen club stays at 1. With the prior on, an unseen
+    club uses the new-club start stored on the model.
+    """
+    if team in rates:
+        return float(rates[team])
+    if float(model.prior_kappa) > 0.0:
+        return float(new_club_rate)
+    return 1.0
+
+
 def expected_goals(
     model: DixonColesModel,
     home_team: str,
@@ -123,12 +152,13 @@ def expected_goals(
 ) -> tuple[float, float]:
     """Home and away means: λ = α_home β_away γ, μ = α_away β_home.
 
-    Teams missing from the fit use league-average attack and defence (1.0).
+    Teams missing from the fit use the new-club start when the prior is on,
+    and 1 otherwise.
     """
-    attack_home = model.attack.get(home_team, 1.0)
-    attack_away = model.attack.get(away_team, 1.0)
-    defence_home = model.defence.get(home_team, 1.0)
-    defence_away = model.defence.get(away_team, 1.0)
+    attack_home = _stored_rate(model, model.attack, home_team, model.new_club_attack)
+    attack_away = _stored_rate(model, model.attack, away_team, model.new_club_attack)
+    defence_home = _stored_rate(model, model.defence, home_team, model.new_club_defence)
+    defence_away = _stored_rate(model, model.defence, away_team, model.new_club_defence)
     lam = attack_home * defence_away * model.home_advantage
     mu = attack_away * defence_home
     return float(lam), float(mu)
@@ -168,9 +198,9 @@ def score_table(
 ) -> dict:
     """Stored score table for one fixture, including the tail bucket.
 
-    Teams missing from the fit use league-average attack and defence (1.0),
-    the same rates as ``expected_goals``. ``rho`` is the value actually used
-    after it is projected into the admissible interval.
+    Teams missing from the fit use the same rates as ``expected_goals``.
+    ``rho`` is the value actually used after it is projected into the
+    admissible interval.
     """
     if max_goals is None:
         max_goals = DIXON_COLES_MAX_GOALS
@@ -210,15 +240,23 @@ def fit_dixon_coles(
     xi: float | None = None,
     l2: float | None = None,
     max_goals: int | None = None,
+    prior_kappa: float | None = None,
+    promoted_factor: float | None = None,
 ) -> DixonColesModel:
     """Weighted Dixon–Coles MLE.
 
     ξ is fixed (config default ``DIXON_COLES_XI``), not jointly optimized.
-    Attack is reparameterized so its mean is 1. Defence and attack are pulled
-    toward 1 with an L2 term scaled by ``1 / (team_matches + 1)``. If the
-    optimizer raises, returns ``success=False``, returns a non-finite point, or
-    stays in the τ ≤ 0 penalty region, the model logs a warning and falls back
-    to the Poisson moment init with ρ = 0.
+    Attack is reparameterized so its mean is 1. With ``prior_kappa`` at 0,
+    defence and attack are pulled toward 1 with an L2 term scaled by
+    ``1 / (team_matches + 1)``. A positive ``prior_kappa`` replaces that term.
+    It is the curvature of a penalty on log attack and log defence, so a club
+    with few matches moves toward the pack and a club with a long history
+    barely moves. A club that plays in the latest season in the fit and has
+    no match in the season before that is pulled toward a lower attack and a
+    higher concession rate. ``promoted_factor`` is that fixed shift. It is not
+    searched inside the fit. If the optimizer raises, returns ``success=False``,
+    returns a non-finite point, or stays in the τ ≤ 0 penalty region, the model
+    logs a warning and falls back to the Poisson moment init with ρ = 0.
 
     ``max_goals`` is accepted for callers that share the predict signature.
     The likelihood uses the observed scores, so the grid cap does not enter the fit.
@@ -228,10 +266,29 @@ def fit_dixon_coles(
 
     xi = float(DIXON_COLES_XI if xi is None else xi)
     l2 = float(DIXON_COLES_L2 if l2 is None else l2)
+    if prior_kappa is None:
+        prior_kappa = float(DIXON_COLES_PRIOR_KAPPA)
+    else:
+        prior_kappa = float(prior_kappa)
+    if promoted_factor is None:
+        promoted_factor = float(THIN_PRIOR_PROMOTED_FACTOR)
+    else:
+        promoted_factor = float(promoted_factor)
+    if not np.isfinite(prior_kappa) or prior_kappa < 0.0:
+        raise ValueError("prior_kappa must be finite and >= 0")
+    if (
+        not np.isfinite(promoted_factor)
+        or promoted_factor <= 0.0
+        or promoted_factor > 1.0
+    ):
+        raise ValueError("promoted_factor must be in (0, 1]")
+    # The real prior replaces the small L2 term. Stacking both would be a second pull.
+    if prior_kappa > 0.0:
+        l2 = 0.0
     frame, as_of_ts = _prepare_matches(matches, as_of)
     if frame.empty:
         logger.warning("Dixon–Coles fit has no matches; returning a neutral model")
-        return _neutral_model(xi, as_of_ts)
+        return _neutral_model(xi, as_of_ts, prior_kappa=prior_kappa)
 
     teams = sorted(set(frame["home_team"]) | set(frame["away_team"]))
     index = {team: i for i, team in enumerate(teams)}
@@ -246,12 +303,30 @@ def fit_dixon_coles(
 
     hg = home_goals.astype(float)
     ag = away_goals.astype(float)
-    attack0, defence0, gamma0 = _poisson_init(n, home_ix, away_ix, hg, ag, weights)
+    attack0, defence0, gamma0, mass = _poisson_init(
+        n, home_ix, away_ix, hg, ag, weights
+    )
+    is_new = _new_club_flags(frame, teams)
+    attack0, defence0 = _shrink_start(
+        attack0, defence0, mass, is_new, prior_kappa, promoted_factor
+    )
     counts = np.bincount(home_ix, minlength=n) + np.bincount(away_ix, minlength=n)
     shrink = 1.0 / (counts.astype(float) + 1.0)
     log_fact = gammaln(hg + 1.0) + gammaln(ag + 1.0)
     low_score = _low_score_masks(home_goals, away_goals)
-    fallback = _arrays_to_model(teams, attack0, defence0, gamma0, 0.0, xi, as_of_ts)
+    log_factor_a, log_factor_d = _log_factors(is_new, promoted_factor)
+    fallback = _model_from_fit(
+        teams,
+        attack0,
+        defence0,
+        gamma0,
+        0.0,
+        xi,
+        as_of_ts,
+        prior_kappa,
+        is_new,
+        promoted_factor,
+    )
 
     def objective(theta: np.ndarray) -> float:
         attack, defence, gamma, rho = _unpack_theta(theta, n)
@@ -282,9 +357,12 @@ def fit_dixon_coles(
         l2_penalty = l2 * float(
             np.sum(shrink * ((attack - 1.0) ** 2 + (defence - 1.0) ** 2))
         )
+        prior_penalty = _profile_prior(
+            attack, defence, log_factor_a, log_factor_d, prior_kappa
+        )
         # Keep the free ρ parameter on the admissible side of the clip.
         pull = (rho - rho_hat) ** 2
-        return -float(np.dot(weights, log_p)) + l2_penalty + pull
+        return -float(np.dot(weights, log_p)) + l2_penalty + prior_penalty + pull
 
     try:
         result = minimize(
@@ -323,7 +401,153 @@ def fit_dixon_coles(
             "Fitted rho made tau non-positive; falling back to rho=0 with fitted strengths"
         )
         rho = 0.0
-    return _arrays_to_model(teams, attack, defence, gamma, rho, xi, as_of_ts)
+    return _model_from_fit(
+        teams,
+        attack,
+        defence,
+        gamma,
+        rho,
+        xi,
+        as_of_ts,
+        prior_kappa,
+        is_new,
+        promoted_factor,
+    )
+
+
+def _new_club_flags(frame: pd.DataFrame, teams: list[str]) -> np.ndarray:
+    """True for a club in the latest season of the fit and absent from the one before.
+
+    One season in the fit is not enough to tell a new club from anyone else, so
+    every club is treated as already having a history. The season labels are
+    the training rows only.
+    """
+    flags = np.zeros(len(teams), dtype=bool)
+    if "season_code" not in frame.columns or frame.empty:
+        return flags
+    seasons = sorted({str(code) for code in frame["season_code"].dropna().unique()})
+    if len(seasons) < 2:
+        return flags
+    latest = seasons[-1]
+    previous = seasons[-2]
+    codes = frame["season_code"].astype(str)
+    played_latest = set(frame.loc[codes == latest, "home_team"]) | set(
+        frame.loc[codes == latest, "away_team"]
+    )
+    played_previous = set(frame.loc[codes == previous, "home_team"]) | set(
+        frame.loc[codes == previous, "away_team"]
+    )
+    for i, team in enumerate(teams):
+        flags[i] = team in played_latest and team not in played_previous
+    return flags
+
+
+def _log_factors(is_new: np.ndarray, promoted_factor: float) -> tuple[np.ndarray, np.ndarray]:
+    """Log shift for a new club: lower attack, higher concession rate, one fraction."""
+    shift = float(math.log(promoted_factor))
+    log_factor_a = np.where(is_new, shift, 0.0)
+    log_factor_d = np.where(is_new, -shift, 0.0)
+    return log_factor_a.astype(float), log_factor_d.astype(float)
+
+
+def _shrink_start(
+    attack: np.ndarray,
+    defence: np.ndarray,
+    mass: np.ndarray,
+    is_new: np.ndarray,
+    kappa: float,
+    promoted_factor: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Start the optimizer nearer the prior. The fit itself still applies the penalty."""
+    if kappa <= 0.0:
+        return attack, defence
+    factor_a = np.where(is_new, promoted_factor, 1.0)
+    factor_d = np.where(is_new, 1.0 / promoted_factor, 1.0)
+    n_eff = np.maximum(np.asarray(mass, dtype=float), 0.0)
+    attack = (n_eff * attack + kappa * factor_a) / (n_eff + kappa)
+    defence = (n_eff * defence + kappa * factor_d) / (n_eff + kappa)
+    mean_attack = float(attack.mean())
+    if np.isfinite(mean_attack) and mean_attack > 0.0:
+        attack = attack / mean_attack
+    defence = np.clip(defence, math.exp(-5.0), math.exp(5.0))
+    return attack, defence
+
+
+def _profile_prior(
+    attack: np.ndarray,
+    defence: np.ndarray,
+    log_factor_a: np.ndarray,
+    log_factor_d: np.ndarray,
+    kappa: float,
+) -> float:
+    """Penalty that shrinks log-rates toward each other, with a free common level.
+
+    Curvature is about ``kappa`` per club, the same scale as that many matches.
+    The common level is the mean of the current rates, so the penalty does not
+    drag the whole league toward 1. A new club's target sits ``promoted_factor``
+    away from that level.
+    """
+    if kappa <= 0.0:
+        return 0.0
+    rel_a = np.log(np.maximum(attack, 1e-12)) - log_factor_a
+    rel_d = np.log(np.maximum(defence, 1e-12)) - log_factor_d
+    penalty = float(
+        np.sum((rel_a - rel_a.mean()) ** 2) + np.sum((rel_d - rel_d.mean()) ** 2)
+    )
+    if not np.isfinite(penalty):
+        return _PENALTY
+    return 0.5 * float(kappa) * penalty
+
+
+def _new_club_levels(
+    attack: np.ndarray,
+    defence: np.ndarray,
+    is_new: np.ndarray,
+    promoted_factor: float,
+) -> tuple[float, float]:
+    """Starting attack and defence for a club the fit has not seen."""
+    log_factor_a, log_factor_d = _log_factors(is_new, promoted_factor)
+    center_a = float(np.mean(np.log(np.maximum(attack, 1e-12)) - log_factor_a))
+    center_d = float(np.mean(np.log(np.maximum(defence, 1e-12)) - log_factor_d))
+    new_attack = math.exp(center_a + math.log(promoted_factor))
+    new_defence = math.exp(center_d - math.log(promoted_factor))
+    if not np.isfinite(new_attack) or new_attack <= 0.0:
+        new_attack = float(promoted_factor)
+    if not np.isfinite(new_defence) or new_defence <= 0.0:
+        new_defence = 1.0 / float(promoted_factor)
+    return float(new_attack), float(new_defence)
+
+
+def _model_from_fit(
+    teams: list[str],
+    attack: np.ndarray,
+    defence: np.ndarray,
+    gamma: float,
+    rho: float,
+    xi: float,
+    as_of: pd.Timestamp | None,
+    prior_kappa: float,
+    is_new: np.ndarray,
+    promoted_factor: float,
+) -> DixonColesModel:
+    if prior_kappa > 0.0:
+        new_attack, new_defence = _new_club_levels(
+            attack, defence, is_new, promoted_factor
+        )
+    else:
+        new_attack, new_defence = 1.0, 1.0
+    return _arrays_to_model(
+        teams,
+        attack,
+        defence,
+        gamma,
+        rho,
+        xi,
+        as_of,
+        prior_kappa=prior_kappa,
+        new_club_attack=new_attack,
+        new_club_defence=new_defence,
+    )
 
 
 def _prepare_matches(
@@ -336,7 +560,10 @@ def _prepare_matches(
     if missing:
         raise ValueError(f"matches missing columns: {missing}")
 
-    frame = matches.loc[:, required].copy()
+    columns = list(required)
+    if "season_code" in matches.columns:
+        columns.append("season_code")
+    frame = matches.loc[:, columns].copy()
     frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
     frame["home_goals"] = pd.to_numeric(frame["home_goals"], errors="coerce")
     frame["away_goals"] = pd.to_numeric(frame["away_goals"], errors="coerce")
@@ -355,7 +582,11 @@ def _prepare_matches(
     return frame, as_of_ts
 
 
-def _neutral_model(xi: float, as_of: pd.Timestamp | None) -> DixonColesModel:
+def _neutral_model(
+    xi: float,
+    as_of: pd.Timestamp | None,
+    prior_kappa: float = 0.0,
+) -> DixonColesModel:
     return DixonColesModel(
         attack={},
         defence={},
@@ -363,6 +594,7 @@ def _neutral_model(xi: float, as_of: pd.Timestamp | None) -> DixonColesModel:
         rho=0.0,
         xi=xi,
         as_of=as_of,
+        prior_kappa=float(prior_kappa),
     )
 
 
@@ -373,8 +605,8 @@ def _poisson_init(
     home_goals: np.ndarray,
     away_goals: np.ndarray,
     weights: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, float]:
-    """Moment attack/defence (mean attack 1) and a home-advantage start near the data."""
+) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+    """Moment attack/defence (mean attack 1), a home-advantage start, and weight mass."""
     weights = np.asarray(weights, dtype=float)
     if not np.isfinite(weights).all() or float(weights.sum()) <= 0.0:
         weights = np.ones(len(home_goals), dtype=float)
@@ -412,7 +644,7 @@ def _poisson_init(
         gamma = 1.3
     gamma = float(np.clip(gamma, math.exp(-1.5), math.exp(2.5)))
     defence = np.clip(defence, math.exp(-5.0), math.exp(5.0))
-    return attack, defence, gamma
+    return attack, defence, gamma, mass
 
 
 def _pack_init(
@@ -522,6 +754,9 @@ def _arrays_to_model(
     rho: float,
     xi: float,
     as_of: pd.Timestamp | None,
+    prior_kappa: float = 0.0,
+    new_club_attack: float = 1.0,
+    new_club_defence: float = 1.0,
 ) -> DixonColesModel:
     attack = np.asarray(attack, dtype=float)
     mean_attack = float(attack.mean()) if len(attack) else 1.0
@@ -537,4 +772,7 @@ def _arrays_to_model(
         rho=float(rho),
         xi=float(xi),
         as_of=as_of,
+        prior_kappa=float(prior_kappa),
+        new_club_attack=float(new_club_attack),
+        new_club_defence=float(new_club_defence),
     )
