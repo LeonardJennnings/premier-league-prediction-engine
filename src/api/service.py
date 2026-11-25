@@ -26,28 +26,46 @@ def _now_utc_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Unpinned reads. Each match keeps the model_version of its first published row.
+PUBLIC_LABEL = "public"
+
+
 def get_upcoming(conn, model_version: str | None, *, now_utc: str | None = None) -> dict:
+    now = now_utc or _now_utc_iso()
+    if model_version is None:
+        return {
+            "model_version": PUBLIC_LABEL,
+            "matches": store.list_public_upcoming(
+                conn, now_utc=now, window_days=PUBLISH_WINDOW_DAYS
+            ),
+        }
     version = resolve_model_version(conn, model_version)
     rows = store.list_upcoming_predictions(
         conn,
         version,
-        now_utc=now_utc or _now_utc_iso(),
+        now_utc=now,
         window_days=PUBLISH_WINDOW_DAYS,
     )
     return {"model_version": version, "matches": rows}
 
 
 def list_weeks(conn, model_version: str | None) -> dict:
+    if model_version is None:
+        return {"model_version": PUBLIC_LABEL, "weeks": store.list_public_settled_weeks(conn)}
     version = resolve_model_version(conn, model_version)
     return {"model_version": version, "weeks": store.list_settled_weeks(conn, version)}
 
 
 def get_week(conn, iso_week: str, model_version: str | None) -> dict:
-    version = resolve_model_version(conn, model_version)
-    rows = store.list_settled_predictions_for_week(conn, version, iso_week)
+    if model_version is None:
+        rows = store.list_public_settled_for_week(conn, iso_week)
+        label = PUBLIC_LABEL
+    else:
+        label = resolve_model_version(conn, model_version)
+        rows = store.list_settled_predictions_for_week(conn, label, iso_week)
     if not rows:
         raise NotFoundError(f"no settled matches for iso_week={iso_week}")
-    return {"model_version": version, "iso_week": iso_week, "matches": rows}
+    return {"model_version": label, "iso_week": iso_week, "matches": rows}
 
 
 def _artefact_payload(row: dict) -> dict:

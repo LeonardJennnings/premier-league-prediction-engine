@@ -73,14 +73,14 @@ def test_get_upcoming_happy_path(tmp_path: Path):
     conn = _seed(tmp_path)
     now = "2026-11-16T12:00:00Z"
     empty = get_upcoming(conn, None, now_utc=now)
-    assert empty == {"model_version": "v-new", "matches": []}
+    assert empty == {"model_version": "public", "matches": []}
     insert_prediction(conn, _row(match_id=1, kickoff_utc="2026-11-17T15:00:00Z", status="scheduled"))
     insert_prediction(conn, _row(match_id=2, kickoff_utc="2026-11-18T15:00:00Z", status="postponed"))
     insert_prediction(conn, _row(match_id=3, kickoff_utc="2026-11-30T15:00:00Z", status="scheduled"))
     insert_prediction(conn, _row(match_id=4, model_version="v-old", kickoff_utc="2026-11-17T15:00:00Z"))
     got = get_upcoming(conn, None, now_utc=now)
-    assert got["model_version"] == "v-new"
-    assert [r["match_id"] for r in got["matches"]] == [1, 2]
+    assert got["model_version"] == "public"
+    assert [r["match_id"] for r in got["matches"]] == [1, 4, 2]
     pinned = get_upcoming(conn, "v-old", now_utc=now)
     assert pinned["model_version"] == "v-old"
     assert [r["match_id"] for r in pinned["matches"]] == [4]
@@ -95,15 +95,60 @@ def test_list_weeks_and_get_week_happy_path(tmp_path: Path):
     settle_prediction(conn, 11, "v-new", 0, 0, "D")
     insert_prediction(conn, _row(match_id=12, kickoff_utc="2026-11-14T15:00:00Z", status="scheduled"))
     weeks = list_weeks(conn, None)
-    assert weeks["model_version"] == "v-new"
+    assert weeks["model_version"] == "public"
     assert weeks["weeks"][0] == {"iso_week": "2026-W46", "match_count": 1}
     assert weeks["weeks"][1] == {"iso_week": "2026-W45", "match_count": 1}
     detail = get_week(conn, "2026-W46", None)
-    assert detail["model_version"] == "v-new"
+    assert detail["model_version"] == "public"
     assert detail["iso_week"] == "2026-W46"
     assert [r["match_id"] for r in detail["matches"]] == [10]
     assert detail["matches"][0]["home_goals"] == 2
     assert detail["matches"][0]["result"] == "H"
+    conn.close()
+
+
+def test_unpinned_read_keeps_the_first_published_row(tmp_path: Path):
+    conn = _seed(tmp_path)
+    insert_prediction(
+        conn,
+        _row(
+            match_id=1,
+            model_version="v-old",
+            published_at="2026-11-01T00:00:00Z",
+            p_home=0.11,
+            kickoff_utc="2026-11-17T15:00:00Z",
+        ),
+    )
+    insert_prediction(
+        conn,
+        _row(
+            match_id=1,
+            model_version="v-new",
+            published_at="2026-11-16T12:00:00Z",
+            p_home=0.45,
+            kickoff_utc="2026-11-17T15:00:00Z",
+        ),
+    )
+    got = get_upcoming(conn, None, now_utc="2026-11-16T12:00:00Z")
+    row = next(match for match in got["matches"] if match["match_id"] == 1)
+    assert row["model_version"] == "v-old"
+    assert row["p_home"] == 0.11
+    pinned = get_upcoming(conn, "v-new", now_utc="2026-11-16T12:00:00Z")
+    assert [match["p_home"] for match in pinned["matches"]] == [0.45]
+    conn.close()
+
+
+def test_latest_model_ignores_sample_local_when_a_real_version_exists(tmp_path: Path):
+    conn = _seed(tmp_path)
+    upsert_model_artefact(
+        conn,
+        "sample-local",
+        "2026-11-25",
+        "fixtures/sample-local",
+        {},
+        created_at="2026-11-25T00:00:00Z",
+    )
+    assert get_latest_model(conn)["model_version"] == "v-new"
     conn.close()
 
 

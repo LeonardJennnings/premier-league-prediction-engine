@@ -173,6 +173,16 @@ def append_settlements(lines: list[dict], *, path: Path | None = None) -> dict:
         for row in existing
         if row.get("kind") == "correction"
     }
+    status_keys = {
+        (
+            int(row["match_id"]),
+            str(row["forecast_line"]),
+            str(row.get("status")),
+            str(row.get("kickoff_utc") or ""),
+        )
+        for row in existing
+        if row.get("kind") == "status"
+    }
     fresh: list[dict] = []
     skipped = 0
     for line in lines:
@@ -194,6 +204,18 @@ def append_settlements(lines: list[dict], *, path: Path | None = None) -> dict:
                 skipped += 1
                 continue
             correction_keys.add(corr_key)
+        elif kind == "status":
+            # A later kickoff is a new line. The same status and kickoff is not.
+            status_key = (
+                match_key[0],
+                match_key[1],
+                str(line.get("status")),
+                str(line.get("kickoff_utc") or ""),
+            )
+            if status_key in status_keys:
+                skipped += 1
+                continue
+            status_keys.add(status_key)
         else:
             raise ValueError(f"Unknown settlement kind: {kind}")
         fresh.append(line)
@@ -222,12 +244,26 @@ def write_manifest(path: Path | None = None) -> dict:
             if row.get("model_version")
         }
     )
+    target = root / MANIFEST_NAME
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if target.is_file():
+        try:
+            previous = json.loads(target.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            previous = None
+        # A second run with the same lines must not dirty the commit clock.
+        if (
+            isinstance(previous, dict)
+            and previous.get("files") == files
+            and previous.get("model_versions") == versions
+            and previous.get("generated_at")
+        ):
+            generated_at = str(previous["generated_at"])
     manifest = {
         "files": files,
         "model_versions": versions,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": generated_at,
     }
-    target = root / MANIFEST_NAME
     _write_bytes(target, (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8"))
     return manifest
 

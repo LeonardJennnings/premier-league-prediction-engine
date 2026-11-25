@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.fixtures.client import fetch_pl_matches, normalize_match
+from src.fixtures.client import backoff_seconds, fetch_pl_matches, normalize_match
 from src.fixtures.window import matches_in_publish_window
 
 
@@ -24,6 +24,7 @@ def test_normalize_match():
     assert m["kickoff_utc"] == "2026-11-22T15:00:00Z"
     assert m["matchday"] == 12
     assert m["status"] == "TIMED"
+    assert m["provider_updated_at"] is None
 
 
 def test_window_filters(tmp_path: Path):
@@ -197,4 +198,54 @@ def test_fetch_uses_session_when_provided(tmp_path: Path):
     )
     assert len(rows) == 1
     assert rows[0]["home_team"] == "Liverpool FC"
+
+
+def test_normalize_records_provider_update_time():
+    raw = {
+        "id": 42,
+        "utcDate": "2026-11-22T15:00:00Z",
+        "matchday": 12,
+        "status": "AWARDED",
+        "lastUpdated": "2026-11-24T00:20:27Z",
+        "homeTeam": {"name": "Arsenal FC"},
+        "awayTeam": {"name": "Chelsea FC"},
+        "score": {"fullTime": {"home": 3, "away": 0}},
+    }
+    match = normalize_match(raw)
+    assert match["provider_updated_at"] == "2026-11-24T00:20:27Z"
+    assert match["home_goals"] == 3
+    assert match["away_goals"] == 0
+
+
+def test_backoff_waits_only_when_the_minute_budget_is_spent():
+    assert backoff_seconds({"X-Requests-Available-Minute": "0", "X-RequestCounter-Reset": "12"}) == 12
+    assert backoff_seconds({"X-Requests-Available-Minute": "4"}, status_code=200) == 0
+    assert backoff_seconds(None) == 0
+    assert backoff_seconds({}, status_code=429) == 60
+
+
+def test_fetch_waits_when_the_budget_is_spent(tmp_path: Path, monkeypatch):
+    slept = []
+    monkeypatch.setattr("src.fixtures.client.time.sleep", lambda seconds: slept.append(seconds))
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"X-Requests-Available-Minute": "0", "X-RequestCounter-Reset": "5"}
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"matches": []}
+
+    monkeypatch.setattr("src.fixtures.client.requests.get", lambda *args, **kwargs: FakeResponse())
+    fetch_pl_matches(
+        "2026-11-16",
+        "2026-11-17",
+        token="secret",
+        cache_dir=tmp_path,
+        write_cache=False,
+    )
+    assert slept == [5.0]
+    assert list(tmp_path.iterdir()) == []
 

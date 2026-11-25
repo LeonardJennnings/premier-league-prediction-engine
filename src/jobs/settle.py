@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # After a row is postponed, look this far past its stored kickoff for a new date.
 POSTPONED_LOOKAHEAD_DAYS = 90
 
+_FINISHED_API = {"FINISHED", "AWARDED"}
 _STATUS_FROM_API = {
     "POSTPONED": "postponed",
     "SUSPENDED": "postponed",
@@ -39,8 +40,9 @@ def settle_from_api(*, token: str | None = None, model_version: str | None = Non
     rows also look ahead for a rescheduled ``utcDate``. The cache is not read;
     a successful fetch still overwrites the cache file.
 
-    ``FINISHED`` writes the full-time score, including a correction when an
-    already settled row has different goals. ``POSTPONED`` and ``SUSPENDED``
+    ``FINISHED`` and ``AWARDED`` (when both goals are present) write the
+    full-time score, including a correction when an already settled row has
+    different goals. ``POSTPONED`` and ``SUSPENDED``
     set ``postponed``. ``CANCELLED`` sets ``cancelled``. A listed match can
     move a postponed row back to ``scheduled`` and store a new kickoff.
     A match with no prediction row is logged and skipped.
@@ -132,7 +134,7 @@ def _kickoff_date(value: str):
 
 def _apply_match(conn, row: dict, match: dict) -> bool:
     """Apply one API match. True only when settlement scores were written."""
-    if match.get("status") == "FINISHED":
+    if match.get("status") in _FINISHED_API:
         return _apply_finished(conn, row, match)
     if row["status"] == "settled":
         return False
@@ -187,7 +189,7 @@ def _apply_open(conn, row: dict, match: dict) -> None:
 
 
 def _full_time_score(match: dict) -> tuple[int, int] | None:
-    if match.get("status") != "FINISHED":
+    if match.get("status") not in _FINISHED_API:
         return None
     home = match.get("home_goals")
     away = match.get("away_goals")

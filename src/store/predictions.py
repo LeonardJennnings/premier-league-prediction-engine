@@ -208,15 +208,45 @@ def _iso_week_key(kickoff_utc: str) -> str:
     return f"{year}-W{week:02d}"
 
 
+# Local demo rows. They must not hide a real fitted version.
+SAMPLE_MODEL_VERSION = "sample-local"
+
+
 def get_latest_model_version(conn: sqlite3.Connection) -> str | None:
     row = conn.execute(
         """
         SELECT model_version FROM model_artefacts
+        WHERE model_version != ?
         ORDER BY created_at DESC, model_version DESC
         LIMIT 1
-        """
+        """,
+        (SAMPLE_MODEL_VERSION,),
     ).fetchone()
+    if row is None:
+        row = conn.execute(
+            """
+            SELECT model_version FROM model_artefacts
+            ORDER BY created_at DESC, model_version DESC
+            LIMIT 1
+            """
+        ).fetchone()
     return None if row is None else row["model_version"]
+
+
+def list_public_predictions(conn: sqlite3.Connection) -> list[dict]:
+    """Earliest published row for each match. A newer fit does not replace it."""
+    rows = conn.execute(
+        """
+        SELECT * FROM predictions
+        ORDER BY published_at ASC, model_version ASC, match_id ASC
+        """
+    ).fetchall()
+    chosen: dict[int, dict] = {}
+    for row in rows:
+        match_id = int(row["match_id"])
+        if match_id not in chosen:
+            chosen[match_id] = dict(row)
+    return [chosen[match_id] for match_id in sorted(chosen)]
 
 
 def get_model_artefact(conn: sqlite3.Connection, model_version: str) -> dict | None:
@@ -251,6 +281,45 @@ def list_upcoming_predictions(
         if now <= kick < end:
             out.append(dict(row))
     return out
+
+
+def list_public_upcoming(
+    conn: sqlite3.Connection, *, now_utc: str, window_days: int
+) -> list[dict]:
+    now = _parse_utc(now_utc)
+    end = now + timedelta(days=window_days)
+    out = []
+    for row in list_public_predictions(conn):
+        if row["status"] not in ("scheduled", "postponed"):
+            continue
+        kick = _parse_utc(row["kickoff_utc"])
+        if now <= kick < end:
+            out.append(row)
+    out.sort(key=lambda row: (row["kickoff_utc"], row["match_id"]))
+    return out
+
+
+def list_public_settled_weeks(conn: sqlite3.Connection) -> list[dict]:
+    counts: dict[str, int] = {}
+    for row in list_public_predictions(conn):
+        if row["status"] != "settled":
+            continue
+        key = _iso_week_key(row["kickoff_utc"])
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        {"iso_week": week, "match_count": counts[week]}
+        for week in sorted(counts.keys(), reverse=True)
+    ]
+
+
+def list_public_settled_for_week(conn: sqlite3.Connection, iso_week: str) -> list[dict]:
+    rows = [
+        row
+        for row in list_public_predictions(conn)
+        if row["status"] == "settled" and _iso_week_key(row["kickoff_utc"]) == iso_week
+    ]
+    rows.sort(key=lambda row: (row["kickoff_utc"], row["match_id"]))
+    return rows
 
 
 def list_settled_weeks(conn: sqlite3.Connection, model_version: str) -> list[dict]:

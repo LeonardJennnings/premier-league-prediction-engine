@@ -1,0 +1,42 @@
+{
+  "book_comparison": {
+    "closing_book_log_loss": 1.151089964511494,
+    "gap_model_minus_closing": -0.10285505777792456,
+    "match_count": 10,
+    "model_log_loss": 1.0482349067335694,
+    "range_95": [
+      -0.22996294791449917,
+      0.008015017546811809
+    ]
+  },
+  "counts": {
+    "pending": 0,
+    "postponed": 0,
+    "settled": 10,
+    "void": 0
+  },
+  "exact_score": {
+    "always_1_1_hits": 0,
+    "hits": 0,
+    "match_count": 0,
+    "mean_printed_probability": null
+  },
+  "goal_error": {
+    "match_count": 0,
+    "mean_absolute_error": null
+  },
+  "home_draw_away": {
+    "match_count": 10,
+    "model_log_loss": 1.0482349067335694
+  },
+  "matchdays": [
+    {
+      "matchday": 11,
+      "pending": 0,
+      "postponed": 0,
+      "settled": 10,
+      "void": 0
+    }
+  ],
+  "note": "This is a small number of matches, and a week cannot show skill."
+}

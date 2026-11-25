@@ -106,6 +106,63 @@ def index_fixtures_csv(path: Path) -> dict[tuple[str, str, str], dict]:
     return indexed
 
 
+SEASON_OPENING_SOURCE = "football-data.co.uk season file (B365 opening)"
+SEASON_CLOSING_SOURCE = "football-data.co.uk season file (B365 closing)"
+
+
+def quotes_from_season(
+    frame: pd.DataFrame | None,
+    home_team: str,
+    away_team: str,
+    kickoff_utc: str,
+) -> dict[str, dict]:
+    """Opening and closing prices from the processed season table, labelled.
+
+    The frame is the historical match file, not the upcoming fixtures list.
+    A missing trio is omitted. The caller decides which captures are new.
+    """
+    if frame is None or frame.empty:
+        return {}
+    required = {"home_team", "away_team", "date"}
+    if not required <= set(frame.columns):
+        return {}
+    days = set(kickoff_dates(kickoff_utc))
+    dates = pd.to_datetime(frame["date"], errors="coerce")
+    home = home_team.strip()
+    away = away_team.strip()
+    for idx, row in frame.iterrows():
+        day = dates.loc[idx]
+        if pd.isna(day) or day.strftime("%Y-%m-%d") not in days:
+            continue
+        if _name(row["home_team"]) != home or _name(row["away_team"]) != away:
+            continue
+        found: dict[str, dict] = {}
+        opening = _implied_probs(
+            row,
+            "implied_home_open",
+            "implied_draw_open",
+            "implied_away_open",
+            "implied_over_25_open",
+            "implied_under_25_open",
+            source=SEASON_OPENING_SOURCE,
+        )
+        closing = _implied_probs(
+            row,
+            "implied_home",
+            "implied_draw",
+            "implied_away",
+            "implied_over_25",
+            "implied_under_25",
+            source=SEASON_CLOSING_SOURCE,
+        )
+        if opening is not None:
+            found["opening"] = opening
+        if closing is not None:
+            found["closing"] = closing
+        return found
+    return {}
+
+
 def lookup_book(
     index: dict[tuple[str, str, str], dict],
     home_team: str,
@@ -193,6 +250,46 @@ def _decimal_odds(value) -> float | None:
     except (TypeError, ValueError):
         return None
     if not math.isfinite(number) or number <= 1.0:
+        return None
+    return number
+
+
+def _implied_probs(
+    row: pd.Series,
+    home_col: str,
+    draw_col: str,
+    away_col: str,
+    over_col: str,
+    under_col: str,
+    *,
+    source: str,
+) -> dict | None:
+    home = _prob(row, home_col)
+    draw = _prob(row, draw_col)
+    away = _prob(row, away_col)
+    if home is None or draw is None or away is None:
+        return None
+    return {
+        "p_home": home,
+        "p_draw": draw,
+        "p_away": away,
+        "p_over_25": _prob(row, over_col),
+        "p_under_25": _prob(row, under_col),
+        "source": source,
+    }
+
+
+def _prob(row: pd.Series, column: str) -> float | None:
+    if column not in row.index:
+        return None
+    value = row[column]
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number) or number < 0.0 or number > 1.0:
         return None
     return number
 

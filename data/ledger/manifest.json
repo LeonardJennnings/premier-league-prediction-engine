@@ -1,8 +1,8 @@
 {
   "files": {
     "book_lines.jsonl": {
-      "lines": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "lines": 20,
+      "sha256": "1f2b2986926dece57e4e48817e33e8ea3b609837839ff51a473ee60ea30197f6"
     },
     "predictions.jsonl": {
       "lines": 21,
@@ -13,7 +13,7 @@
       "sha256": "ac8be8a3730aa8ff7978a071440a4e5021bd95916d5172e3cc33104426da1a6c"
     }
   },
-  "generated_at": "2026-11-25T00:54:53Z",
+  "generated_at": "2026-11-25T01:23:53Z",
   "model_versions": [
     "dc-20261108-a7b8d765",
     "dc-20261123-e6a133cc-grid"

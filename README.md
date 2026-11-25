@@ -146,6 +146,8 @@ Probability columns are immutable after insert, including a database rule that r
 
 football-data.org names must appear in `data/reference/team_name_map.json`. An unmapped name aborts the publish batch and writes nothing. A mapped club with no fitted history is published at league-average attack and defence, and the row says so. After mapping, publish tries to fill the working store's `book_*` columns from the free [football-data.co.uk fixtures list](https://www.football-data.co.uk/fixtures.csv): Bet365 1X2, plus over/under 2.5 when both prices are present, de-vigged the same way as historical closing odds. A filled row sets `book_source` to `football-data.co.uk fixtures.csv (B365)` and appends an opening line to `data/ledger/book_lines.jsonl`. If the download fails, the file has no Premier League rows, or the home team, away team, and date do not match, those columns stay null.
 
+`python -m src.jobs.daily` runs that settle, refit, publish, book capture, and site export as one command. `--dry-run` prints the counts and writes nothing. The scheduled run is `.github/workflows/daily-ledger.yml`.
+
 Snapshot freshness, the manual Actions refresh, and the shared `FOOTBALL_DATA_ORG_TOKEN` name are in [docs/OPS_CADENCE.md](docs/OPS_CADENCE.md). CI does not read that token.
 
 ## Predictions API
@@ -156,7 +158,7 @@ Read-only FastAPI surface over the SQLite prediction store (no fit/predict on th
 uvicorn src.api.app:app --reload
 ```
 
-Open http://127.0.0.1:8000/docs for OpenAPI. Endpoints: `GET /health`, `GET /v1/predictions/upcoming`, `GET /v1/predictions/weeks`, `GET /v1/predictions/weeks/{iso_week}`, `GET /v1/models/latest`, `GET /v1/models/{model_version}`. Optional `?model_version=` pin. Requires a populated `data/processed/predictions.sqlite` from `fit` / `publish` / `settle`.
+Open http://127.0.0.1:8000/docs for OpenAPI. Endpoints: `GET /health`, `GET /v1/predictions/upcoming`, `GET /v1/predictions/weeks`, `GET /v1/predictions/weeks/{iso_week}`, `GET /v1/models/latest`, `GET /v1/models/{model_version}`. Optional `?model_version=` pin. With no pin, each match is the first published row across model versions. A pin still returns that version only. Requires a populated `data/processed/predictions.sqlite` from `fit` / `publish` / `settle`.
 
 CORS allow-list is `API_CORS_ORIGINS` (comma-separated; default includes Astro on `:4321` and `:3000`).
 
