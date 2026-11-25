@@ -30,7 +30,7 @@ Never paste the token into chat, a commit, or a log. Local and Actions checks pr
 
 `publish` runs `python -m src.pipeline`, then `python -m src.jobs.precompute`, then `scripts/export_upcoming_snapshot.py`.
 
-`settle` runs `python -m src.jobs.settle`, then `scripts/export_scorecard_snapshot.py`. A revised probability is a new model version.
+`settle` runs `python -m src.jobs.settle`, then `scripts/export_scorecard_snapshot.py`. The public ledger keeps the first line for a match. A newer fit does not replace it.
 
 ## Snapshot freshness
 
@@ -67,7 +67,7 @@ Run it by hand from the Actions tab. Choose `freshness`, `publish`, or `settle`.
 Limits, so this stays a stub:
 
 - The workflow uploads artifacts and leaves `main` unchanged. Review the artifact, then commit the JSON you want kept.
-- Each Actions run starts without `predictions.sqlite` (`models/` is gitignored too). Settle on a fresh runner exits 2.
+- Each Actions run starts without `predictions.sqlite`. Fitted `models/<version>/model.json` and `data/ledger/` are committed. Settle on a fresh runner still exits 2 until that local store exists.
 - Cron stays off. Add a schedule after a manual `publish` run has succeeded and the SQLite file has a home between runs.
 
 ## Related commands

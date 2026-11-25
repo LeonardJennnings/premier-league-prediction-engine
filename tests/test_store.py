@@ -131,3 +131,18 @@ def test_update_state_changes_kickoff_and_status_only(tmp_path: Path):
     assert kept["book_p_home"] == pytest.approx(0.4)
     assert update_prediction_state(conn, 999, "dc-test-1", status="cancelled") is False
     conn.close()
+
+
+def test_database_rejects_a_probability_update(tmp_path: Path):
+    db = tmp_path / "predictions.sqlite"
+    init_db(db)
+    conn = connect(db)
+    assert insert_prediction(conn, _row()) is True
+    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+        conn.execute(
+            "UPDATE predictions SET p_home = 0.01 WHERE match_id = 1001"
+        )
+    conn.rollback()
+    got = get_prediction(conn, 1001, "dc-test-1")
+    assert got["p_home"] == pytest.approx(0.45)
+    conn.close()

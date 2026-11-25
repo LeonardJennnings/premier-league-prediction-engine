@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 
@@ -47,6 +48,10 @@ def fit_and_save(
         "l2": float(DIXON_COLES_L2),
         "max_goals": int(DIXON_COLES_MAX_GOALS),
         "temperature": float(temperature),
+        # Hash of the rows the fit was allowed to see. The raw CSV is not committed.
+        "training_data_sha256": _training_data_hash(matches, as_of),
+        # Stored for the lab. Publish does not apply this to the public row.
+        "publish_calibration": "none",
     }
     root = MODELS_DIR if models_dir is None else Path(models_dir)
     version, path = save_artefact(model, temperature, hyperparams, models_dir=root)
@@ -152,6 +157,12 @@ def _labels(holdout: pd.DataFrame) -> list[str]:
         else:
             labels.append("D")
     return labels
+
+
+def _training_data_hash(matches: pd.DataFrame, as_of) -> str:
+    frame = _eligible_matches(matches, as_of)
+    payload = frame.to_csv(index=False).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _as_of_date(as_of, model) -> str:
