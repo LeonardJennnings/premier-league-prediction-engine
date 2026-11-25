@@ -50,7 +50,9 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 
 **Feature as-of rule.** Point-in-time columns (match id, opening/closing implied odds) come from the match row. History-dependent features (form, Elo, decay — when added) are built per fold via `features_for_fold` / `add_features(..., history=..., cutoff=...)` and must use only matches with `date <` the fold cutoff. A helper assert rejects future-looking history joins.
 
-**Opening vs closing book.** football-data.co.uk stores Bet365 pre-closing odds (`B365H/D/A`, `B365>2.5`) and closing odds (`B365CH/CD/CA`, `B365C>2.5`). Closing remains the harder skill benchmark and the default `bookmaker_implied` line. Opening is a separate comparator for “could we have matched the book at publish time?” — do not mix the two when claiming an edge. Closing O/U prefers `B365C>2.5` / `AvgC>2.5` and only falls back to the non-C series when closing totals are absent (older seasons).
+**Opening vs closing book.** football-data.co.uk stores Bet365 pre-closing odds (`B365H/D/A`, `B365>2.5`) and closing odds (`B365CH/CD/CA`, `B365C>2.5`). Closing remains the harder skill benchmark and the default `bookmaker_implied` line. Opening is a separate comparator for the price that could have been seen at publish time. Do not mix the two when comparing lines. Closing over/under uses `B365C>2.5` or `AvgC>2.5` only. A pre-close total is not copied into the closing column, and it is not scored as `bookmaker_over_25`. Publish reads the non-closing columns on the upcoming file and does not substitute a closing price when those are blank.
+
+**Live record.** Two looks are written down before the settled ledger is used to judge the model: 380 settled matches, and 1,140 settled matches. Between those, a range on the site is descriptive. It is not a reason to change a setting or to declare a winner. The note is `docs/experiments/live-record-looks.md`. The ledger is not a tuning set.
 
 **Comparators**
 

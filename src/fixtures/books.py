@@ -25,16 +25,10 @@ logger = logging.getLogger(__name__)
 BOOK_SOURCE = "football-data.co.uk fixtures.csv (B365)"
 REQUEST_TIMEOUT = 30
 
-# Opening prices are filled on the upcoming file. Closing columns are the
-# fallback when the opening trio is blank.
-_ONE_X_TWO = (
-    ("B365H", "B365D", "B365A"),
-    ("B365CH", "B365CD", "B365CA"),
-)
-_OVER_UNDER = (
-    ("B365>2.5", "B365<2.5"),
-    ("B365C>2.5", "B365C<2.5"),
-)
+# Publish reads the price on the upcoming file that is not a closing line.
+# A closing column is never used when that earlier price is blank.
+_ONE_X_TWO = (("B365H", "B365D", "B365A"),)
+_OVER_UNDER = (("B365>2.5", "B365<2.5"),)
 
 
 def download_fixtures_csv(
@@ -150,28 +144,28 @@ def _books_from_row(row: pd.Series) -> dict | None:
         return None
     home, draw, away = prices
     payload = {
-        "home_odds_close": home,
-        "draw_odds_close": draw,
-        "away_odds_close": away,
+        "home_odds_open": home,
+        "draw_odds_open": draw,
+        "away_odds_open": away,
     }
     totals = _first_prices(row, _OVER_UNDER)
     if totals is not None:
-        payload["over_25_odds_close"] = totals[0]
-        payload["under_25_odds_close"] = totals[1]
+        payload["over_25_odds_open"] = totals[0]
+        payload["under_25_odds_open"] = totals[1]
     implied = add_implied_odds(pd.DataFrame([payload])).iloc[0]
-    if "implied_home" not in implied or pd.isna(implied["implied_home"]):
+    if "implied_home_open" not in implied or pd.isna(implied["implied_home_open"]):
         return None
     books = {
-        "book_p_home": float(implied["implied_home"]),
-        "book_p_draw": float(implied["implied_draw"]),
-        "book_p_away": float(implied["implied_away"]),
+        "book_p_home": float(implied["implied_home_open"]),
+        "book_p_draw": float(implied["implied_draw_open"]),
+        "book_p_away": float(implied["implied_away_open"]),
         "book_p_over_25": None,
         "book_p_under_25": None,
         "book_source": BOOK_SOURCE,
     }
-    if "implied_over_25" in implied and pd.notna(implied["implied_over_25"]):
-        books["book_p_over_25"] = float(implied["implied_over_25"])
-        books["book_p_under_25"] = float(implied["implied_under_25"])
+    if "implied_over_25_open" in implied and pd.notna(implied["implied_over_25_open"]):
+        books["book_p_over_25"] = float(implied["implied_over_25_open"])
+        books["book_p_under_25"] = float(implied["implied_under_25_open"])
     return books
 
 
