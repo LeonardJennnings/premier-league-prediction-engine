@@ -245,8 +245,10 @@ if __name__ == "__main__":
         for label, path in paths.items():
             logger.info("Wrote %s -> %s", label, path)
     else:
-        summary, by_gw, pred_frames = run_walkforward()
-        paths = write_walkforward_artefacts(summary, by_gw, pred_frames)
+        summary, by_gw, pred_frames, match_scores = run_walkforward()
+        paths = write_walkforward_artefacts(
+            summary, by_gw, pred_frames, match_scores=match_scores
+        )
         logger.info("\n%s", summary.to_string(index=False))
         for label, path in paths.items():
             logger.info("Wrote %s -> %s", label, path)

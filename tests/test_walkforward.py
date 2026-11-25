@@ -139,7 +139,7 @@ def test_run_walkforward_synthetic_integration(tmp_path: Path):
     """Tiny end-to-end walk-forward: disjoint folds, plot path, de-vigged book."""
     raw = _synthetic_matches(40)
     # Point-in-time features optional here; run_walkforward builds per fold.
-    summary, by_gw, pred_frames = run_walkforward(raw, min_train_rows=10)
+    summary, by_gw, pred_frames, _scores = run_walkforward(raw, min_train_rows=10)
 
     assert not summary.empty
     assert not by_gw.empty
@@ -192,7 +192,7 @@ def test_new_models_import_and_fit_on_synthetic():
 
 def test_walkforward_includes_dixon_coles_and_elo():
     matches = assign_gameweeks(_mixed_matches(20), matches_per_gw=5)
-    summary, _, preds = run_walkforward(matches, min_train_rows=5)
+    summary, _, preds, _scores = run_walkforward(matches, min_train_rows=5)
     models = set(summary["model"])
     assert "dixon_coles" in models
     assert "elo" in models
@@ -251,7 +251,7 @@ def test_walkforward_lab_ou_lines_and_prior_fold_calibration():
     """Lab O/U comparators score every fold; binary temperature uses prior folds only."""
     # Need enough expanding-window train rows for totals_logistic (>=50).
     matches = assign_gameweeks(_mixed_matches_with_totals(80), matches_per_gw=5)
-    summary, by_gw, preds = run_walkforward(
+    summary, by_gw, preds, _scores = run_walkforward(
         matches, min_train_rows=5, calibration_min_rows=10
     )
     ou_models = set(summary.loc[summary["market"] == "over_under_25", "model"])
@@ -285,10 +285,10 @@ def test_calibrated_line_uses_only_prior_folds(monkeypatch):
     monkeypatch.setattr("src.eval.walkforward.fit_temperature", _spy)
 
     matches = assign_gameweeks(_mixed_matches(24), matches_per_gw=4)
-    _, by_gw, preds = run_walkforward(
+    _, by_gw, preds, _scores = run_walkforward(
         matches, min_train_rows=4, calibration_min_rows=8
     )
-    raw = by_gw[by_gw["model"] == "dixon_coles"]
+    raw = by_gw[(by_gw["model"] == "dixon_coles") & (by_gw["market"] == "1x2")]
     cal = by_gw[by_gw["model"] == "dixon_coles_calibrated"]
     prior = 0
     expected_gws: list[int] = []
@@ -318,7 +318,7 @@ def test_benter_blend_uses_only_prior_folds(monkeypatch):
     monkeypatch.setattr("src.eval.walkforward.fit_benter_blend", _spy)
 
     matches = assign_gameweeks(_mixed_matches(24), matches_per_gw=4)
-    summary, by_gw, preds = run_walkforward(
+    summary, by_gw, preds, _scores = run_walkforward(
         matches, min_train_rows=4, blend_min_rows=8
     )
     book = by_gw[by_gw["model"] == "bookmaker_implied"]
@@ -348,7 +348,7 @@ def test_benter_ou_blend_row_when_book_over_present():
     frame = _mixed_matches(24)
     frame["implied_over_25"] = 0.55
     matches = assign_gameweeks(frame, matches_per_gw=4)
-    summary, by_gw, _ = run_walkforward(
+    summary, by_gw, _, _scores = run_walkforward(
         matches, min_train_rows=4, blend_min_rows=8
     )
     assert "dixon_coles_book_blend_over_25" in set(summary["model"])
@@ -366,7 +366,7 @@ def test_over_under_book_row_when_implied_over_present():
     frame["implied_over_25"] = 0.55
     frame["implied_over_25_open"] = 0.52
     matches = assign_gameweeks(frame, matches_per_gw=5)
-    summary, _, _ = run_walkforward(matches, min_train_rows=5)
+    summary, _, _, _scores = run_walkforward(matches, min_train_rows=5)
     assert "bookmaker_over_25" in set(summary["model"])
     assert "bookmaker_over_25_open" in set(summary["model"])
     row = summary.loc[summary["model"] == "bookmaker_over_25"].iloc[0]
@@ -390,7 +390,7 @@ def test_over_under_book_row_when_implied_over_present():
 
 def test_walkforward_scores_opening_book_when_odds_present():
     matches = assign_gameweeks(_synthetic_matches(25), matches_per_gw=5)
-    summary, _, preds = run_walkforward(matches, min_train_rows=5)
+    summary, _, preds, _scores = run_walkforward(matches, min_train_rows=5)
     assert "bookmaker_opening" in set(summary["model"])
     assert "bookmaker_implied" in set(summary["model"])
     open_row = summary.loc[summary["model"] == "bookmaker_opening"].iloc[0]

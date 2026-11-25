@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,7 +11,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.config import BLEND_MIN_ROWS, CALIBRATION_MIN_ROWS, RESULTS
+from src.config import (
+    BLEND_MIN_ROWS,
+    CALIBRATION_MIN_ROWS,
+    DIXON_COLES_MAX_GOALS,
+    RESULTS,
+    XI_TUNE_HOLDOUT_SEASONS,
+)
 from src.eval.blend import (
     apply_benter_blend,
     apply_binary_logodds_blend,
@@ -24,14 +31,24 @@ from src.eval.calibration import (
     reliability_table,
 )
 from src.eval.gameweeks import assign_gameweeks
-from src.evaluate import accuracy, brier_score, log_loss
+from src.eval.scoreline import (
+    PUBLISHED_PAIRS,
+    constant_poisson_grid,
+    empirical_frequency_grid,
+    paired_comparisons,
+    render_measurement_notes,
+    score_scoreline,
+    summarize_scoreline,
+)
+from src.evaluate import OUTCOME_ORDER, accuracy, brier_score, log_loss
 from src.features import features_for_fold
 from src.models.baseline import fit_baseline, predict_match_features
-from src.models.dixon_coles import fit_dixon_coles
-from src.models.dixon_coles import predict_match as predict_dixon_coles
+from src.models.dixon_coles import expected_goals, fit_dixon_coles, scoreline_grid
+from src.models.dixon_coles import scoreline_grid_from_rates
 from src.models.elo import fit_elo
 from src.models.elo import predict_match as predict_elo
-from src.models.poisson import fit_poisson, predict_match
+from src.models.markets import markets_from_grid
+from src.models.poisson import fit_poisson, match_rates, predict_match
 from src.models.totals_lab import (
     apply_binary_temperature,
     fit_binary_temperature,
@@ -286,14 +303,171 @@ def _pooled_summary(by_gw: pd.DataFrame, pred_frames: dict[str, pd.DataFrame], r
     return pd.DataFrame(rows)
 
 
+def _match_identity(row, season: str, gw: int) -> dict:
+    """Stable ids for pairing. ``match_id`` comes from the feature table when present."""
+    date = pd.Timestamp(row.date)
+    date_s = "" if pd.isna(date) else date.date().isoformat()
+    match_id = getattr(row, "match_id", None)
+    if match_id is None or (isinstance(match_id, float) and math.isnan(match_id)):
+        match_id = f"{season}_{date_s}_{row.home_team}_{row.away_team}"
+    return {
+        "match_id": str(match_id),
+        "round_id": f"{season}_{int(gw)}",
+        "season_code": str(season),
+        "gameweek": int(gw),
+        "date": date_s,
+        "home_team": str(row.home_team),
+        "away_team": str(row.away_team),
+        "home_goals": int(row.home_goals),
+        "away_goals": int(row.away_goals),
+        "result": str(row.result),
+    }
+
+
+def _record_1x2(bucket: list[dict], model: str, identities: list[dict], probas: np.ndarray) -> None:
+    """Per-match 1X2 log loss, so a later paired range uses the same rows."""
+    for ident, probs in zip(identities, np.asarray(probas, dtype=float)):
+        idx = {"H": 0, "D": 1, "A": 2}[ident["result"]]
+        p = min(max(float(probs[idx]), 1e-15), 1.0)
+        pick = OUTCOME_ORDER[int(np.argmax(probs))]
+        bucket.append(
+            {
+                "match_id": ident["match_id"],
+                "round_id": ident["round_id"],
+                "season_code": ident["season_code"],
+                "gameweek": ident["gameweek"],
+                "market": "1x2",
+                "model": model,
+                "loss": float(-np.log(p)),
+                "hit": float(pick == ident["result"]),
+                "top3_hit": float("nan"),
+                "exp_home": float("nan"),
+                "exp_away": float("nan"),
+                "abs_err_home": float("nan"),
+                "abs_err_away": float("nan"),
+                "sq_err_home": float("nan"),
+                "sq_err_away": float("nan"),
+                "abs_err_total": float("nan"),
+                "rps": float("nan"),
+                "home_goals": ident["home_goals"],
+                "away_goals": ident["away_goals"],
+            }
+        )
+
+
+def _record_scoreline(
+    bucket: list[dict],
+    model: str,
+    identities: list[dict],
+    grids: np.ndarray | list[np.ndarray],
+    rates: tuple[float, float, float] | list[tuple[float, float, float]] | None = None,
+    unseen_probability: float | None = None,
+) -> None:
+    """Per-match scoreline score. One shared grid, or one grid per match."""
+    shared_grid = isinstance(grids, np.ndarray)
+    shared_rates = rates is not None and not isinstance(rates, list)
+    for i, ident in enumerate(identities):
+        grid = grids if shared_grid else grids[i]
+        lam = mu = None
+        rho = 0.0
+        if rates is not None:
+            lam, mu, rho = rates if shared_rates else rates[i]
+        scored = score_scoreline(
+            grid,
+            ident["home_goals"],
+            ident["away_goals"],
+            lam=lam,
+            mu=mu,
+            rho=rho,
+            unseen_probability=unseen_probability,
+        )
+        bucket.append(
+            {
+                "match_id": ident["match_id"],
+                "round_id": ident["round_id"],
+                "season_code": ident["season_code"],
+                "gameweek": ident["gameweek"],
+                "market": "scoreline",
+                "model": model,
+                "loss": scored["cell_log_loss"],
+                "hit": scored["modal_hit"],
+                "top3_hit": scored["top3_hit"],
+                "exp_home": scored["exp_home"],
+                "exp_away": scored["exp_away"],
+                "abs_err_home": scored["abs_err_home"],
+                "abs_err_away": scored["abs_err_away"],
+                "sq_err_home": scored["sq_err_home"],
+                "sq_err_away": scored["sq_err_away"],
+                "abs_err_total": scored["abs_err_total"],
+                "rps": scored["rps"],
+                "home_goals": ident["home_goals"],
+                "away_goals": ident["away_goals"],
+            }
+        )
+
+
+def _record_always_one_one(bucket: list[dict], identities: list[dict]) -> None:
+    """Hit rate of the constant pick 1-1. No cell probability, so no log loss."""
+    for ident in identities:
+        hit = float(ident["home_goals"] == 1 and ident["away_goals"] == 1)
+        bucket.append(
+            {
+                "match_id": ident["match_id"],
+                "round_id": ident["round_id"],
+                "season_code": ident["season_code"],
+                "gameweek": ident["gameweek"],
+                "market": "scoreline",
+                "model": "always_1_1",
+                "loss": float("nan"),
+                "hit": hit,
+                "top3_hit": float("nan"),
+                "exp_home": float("nan"),
+                "exp_away": float("nan"),
+                "abs_err_home": float("nan"),
+                "abs_err_away": float("nan"),
+                "sq_err_home": float("nan"),
+                "sq_err_away": float("nan"),
+                "abs_err_total": float("nan"),
+                "rps": float("nan"),
+                "home_goals": ident["home_goals"],
+                "away_goals": ident["away_goals"],
+            }
+        )
+
+
+def _scoreline_fold_rows(run_at: str, season: str, gw: int, n_train: int, fold_rows: list[dict]) -> list[dict]:
+    """Per-round scoreline diagnostics. The headline mean is pooled from the raw rows."""
+    frame = pd.DataFrame(fold_rows)
+    out = []
+    for model, part in frame.groupby("model", sort=True):
+        losses = part["loss"].to_numpy(dtype=float)
+        finite = model != "always_1_1" and np.isfinite(losses).all()
+        log_loss_value = round(float(np.mean(losses)), 4) if finite else float("nan")
+        out.append(
+            {
+                "run_date": run_at,
+                "model": model,
+                "market": "scoreline",
+                "season_code": season,
+                "gameweek": gw,
+                "n_train": n_train,
+                "n_test": int(len(part)),
+                "log_loss": log_loss_value,
+                "brier": float("nan"),
+                "accuracy": round(float(part["hit"].mean()), 4),
+            }
+        )
+    return out
+
+
 def run_walkforward(
     matches: pd.DataFrame | None = None,
     *,
     min_train_rows: int = MIN_TRAIN_ROWS,
     calibration_min_rows: int = CALIBRATION_MIN_ROWS,
     blend_min_rows: int = BLEND_MIN_ROWS,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]:
-    """Run full walk-forward; return summary, by-gameweek, and per-model prediction frames.
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame], pd.DataFrame]:
+    """Run full walk-forward; return summary, by-gameweek, prediction frames, and per-match scores.
 
     Features are built per fold via :func:`src.features.features_for_fold` so
     history-dependent columns cannot see the test window.
@@ -340,14 +514,18 @@ def run_walkforward(
     # Prior-fold store for lab poisson-total binary temperature.
     prior_pt_y: list[float] = []
     prior_pt_p: list[float] = []
+    match_scores: list[dict] = []
 
     book_1x2_cols = ["implied_home", "implied_draw", "implied_away"]
 
     for train_raw, test_raw, season, gw in iter_folds(matches, min_train_rows=min_train_rows):
         train, test = features_for_fold(train_raw, test_raw)
         y_all = test["result"].tolist()
+        identities = [_match_identity(row, season, gw) for row in test.itertuples(index=False)]
+        scoreline_start = len(match_scores)
 
         naive_P = _naive_probas(train, len(test))
+        _record_1x2(match_scores, "naive_frequencies", identities, naive_P)
         by_gw_rows.append(
             _metric_row(run_at, "naive_frequencies", season, gw, len(train), y_all, naive_P)
         )
@@ -367,6 +545,16 @@ def run_walkforward(
             for row in test.itertuples(index=False)
         ]
         poisson_P = _probas_to_matrix(poisson_rows)
+        _record_1x2(match_scores, "poisson", identities, poisson_P)
+        poisson_grids: list[np.ndarray] = []
+        poisson_rates: list[tuple[float, float, float]] = []
+        for row in test.itertuples(index=False):
+            lam, mu = match_rates(poisson_model, row.home_team, row.away_team)
+            poisson_rates.append((lam, mu, 0.0))
+            poisson_grids.append(
+                scoreline_grid_from_rates(lam, mu, 0.0, max_goals=DIXON_COLES_MAX_GOALS)
+            )
+        _record_scoreline(match_scores, "poisson", identities, poisson_grids, poisson_rates)
         by_gw_rows.append(
             _metric_row(run_at, "poisson", season, gw, len(train), y_all, poisson_P)
         )
@@ -381,11 +569,40 @@ def run_walkforward(
             )
 
         dc_model = fit_dixon_coles(train)
-        dc_rows = [
-            predict_dixon_coles(dc_model, row.home_team, row.away_team)
-            for row in test.itertuples(index=False)
-        ]
+        dc_grids: list[np.ndarray] = []
+        dc_rates: list[tuple[float, float, float]] = []
+        rho0_grids: list[np.ndarray] = []
+        rho0_rates: list[tuple[float, float, float]] = []
+        for row in test.itertuples(index=False):
+            grid = scoreline_grid(dc_model, row.home_team, row.away_team)
+            lam, mu = expected_goals(dc_model, row.home_team, row.away_team)
+            dc_grids.append(grid)
+            dc_rates.append((lam, mu, float(dc_model.rho)))
+            rho0_grids.append(scoreline_grid_from_rates(lam, mu, 0.0, max_goals=DIXON_COLES_MAX_GOALS))
+            rho0_rates.append((lam, mu, 0.0))
+        dc_rows = [markets_from_grid(grid) for grid in dc_grids]
         dc_P = _probas_to_matrix(dc_rows)
+        _record_1x2(match_scores, "dixon_coles", identities, dc_P)
+        _record_scoreline(match_scores, "dixon_coles", identities, dc_grids, dc_rates)
+        _record_scoreline(match_scores, "dixon_coles_rho0", identities, rho0_grids, rho0_rates)
+        freq_grid = empirical_frequency_grid(train["home_goals"], train["away_goals"])
+        const_grid = constant_poisson_grid(train["home_goals"], train["away_goals"])
+        const_rates = (
+            float(train["home_goals"].mean()),
+            float(train["away_goals"].mean()),
+            0.0,
+        )
+        # A score with no earlier match keeps probability 1/(n+1). Seen scores
+        # keep their raw share. That is the league-frequency line.
+        _record_scoreline(
+            match_scores,
+            "league_score_frequencies",
+            identities,
+            freq_grid,
+            unseen_probability=1.0 / (len(train) + 1),
+        )
+        _record_scoreline(match_scores, "constant_poisson", identities, const_grid, const_rates)
+        _record_always_one_one(match_scores, identities)
         by_gw_rows.append(
             _metric_row(run_at, "dixon_coles", season, gw, len(train), y_all, dc_P)
         )
@@ -549,6 +766,7 @@ def run_walkforward(
                         "p_under_25": dc_rows[i]["under_25"],
                     }
                 )
+            _record_1x2(match_scores, "dixon_coles_calibrated", identities, cal_P)
         prior_dc_y.extend(y_all)
         prior_dc_P.append(dc_P)
 
@@ -599,6 +817,8 @@ def run_walkforward(
                         "blend_w_model": weights.w_model,
                     }
                 )
+            blend_ids = [ident for ident, keep in zip(identities, has_book_1x2) if keep]
+            _record_1x2(match_scores, "dixon_coles_book_blend", blend_ids, blend_P)
         if has_book_1x2.any():
             prior_blend_y.extend(test.loc[has_book_1x2, "result"].tolist())
             prior_blend_dc.append(dc_P[has_book_1x2])
@@ -612,6 +832,7 @@ def run_walkforward(
             for row in test.itertuples(index=False)
         ]
         elo_P = _probas_to_matrix(elo_rows)
+        _record_1x2(match_scores, "elo", identities, elo_P)
         by_gw_rows.append(
             _metric_row(run_at, "elo", season, gw, len(train), y_all, elo_P)
         )
@@ -639,6 +860,8 @@ def run_walkforward(
             ]
             baseline_P = _probas_to_matrix(baseline_rows)
             y_base = base_test["result"].tolist()
+            base_ids = [_match_identity(row, season, gw) for row in base_test.itertuples(index=False)]
+            _record_1x2(match_scores, "sklearn_baseline", base_ids, baseline_P)
             by_gw_rows.append(
                 _metric_row(
                     run_at, "sklearn_baseline", season, gw, len(base_train), y_base, baseline_P
@@ -657,6 +880,7 @@ def run_walkforward(
             bookie_P = base_test[
                 ["implied_home", "implied_draw", "implied_away"]
             ].to_numpy(dtype=float)
+            _record_1x2(match_scores, "bookmaker_implied", base_ids, bookie_P)
             by_gw_rows.append(
                 _metric_row(
                     run_at, "bookmaker_implied", season, gw, len(base_train), y_base, bookie_P
@@ -682,6 +906,8 @@ def run_walkforward(
             if not open_test.empty:
                 open_P = open_test[open_cols].to_numpy(dtype=float)
                 y_open = open_test["result"].tolist()
+                open_ids = [_match_identity(row, season, gw) for row in open_test.itertuples(index=False)]
+                _record_1x2(match_scores, "bookmaker_opening", open_ids, open_P)
                 n_train_open = (
                     int(train.dropna(subset=open_cols).shape[0])
                     if set(open_cols) <= set(train.columns)
@@ -820,10 +1046,22 @@ def run_walkforward(
                         {"y_over": float(y_i), "p_over": float(p_i)}
                     )
 
+        fold_scoreline = [
+            row for row in match_scores[scoreline_start:] if row["market"] == "scoreline"
+        ]
+        by_gw_rows.extend(_scoreline_fold_rows(run_at, season, gw, len(train), fold_scoreline))
+
     by_gw = pd.DataFrame(by_gw_rows)
     pred_frames = {k: pd.DataFrame(v) for k, v in pred_records.items()}
-    summary = _pooled_summary(by_gw, pred_frames, run_at)
-    return summary, by_gw, pred_frames
+    # Pool 1X2 and binary lines before scoreline rows exist, so a scoreline
+    # model name cannot be mistaken for a 1X2 line with an empty frame.
+    core_by_gw = by_gw.loc[by_gw["market"] != "scoreline"] if "market" in by_gw.columns else by_gw
+    summary = _pooled_summary(core_by_gw, pred_frames, run_at)
+    match_frame = pd.DataFrame(match_scores)
+    if not match_frame.empty:
+        scoreline_summary = summarize_scoreline(match_frame, run_date=run_at)
+        summary = pd.concat([summary, scoreline_summary], ignore_index=True)
+    return summary, by_gw, pred_frames, match_frame
 
 
 def write_walkforward_artefacts(
@@ -831,6 +1069,7 @@ def write_walkforward_artefacts(
     by_gw: pd.DataFrame,
     pred_frames: dict[str, pd.DataFrame],
     results_dir: Path | None = None,
+    match_scores: pd.DataFrame | None = None,
 ) -> dict[str, Path]:
     """Write CSVs, home-win reliability plots, and WALKFORWARD.md under results/."""
     results_dir = Path(results_dir or RESULTS)
@@ -880,6 +1119,17 @@ def write_walkforward_artefacts(
         "means the market dominates. Labelled model+market fusion, not pure "
         "model skill. sklearn_baseline remains a market-echo comparator "
         "(odds-as-features), not an edge claim.\n"
+        "- Do not rank lines that were scored on different matches. "
+        "Calibrated and blend rows cover fewer matches than the raw line. "
+        "The paired table keeps one match set per comparison and prints a 95% range "
+        "from resampling whole rounds.\n"
+        "- Scoreline rows (market=scoreline) score the exact score: cell log loss, "
+        "most-likely-score hits, top-three hits, goal errors, and a ranked score "
+        "on goal difference. Baselines on the same matches: always 1-1 (hit rate only), "
+        "league score frequencies, a no-team-strength Poisson, the team-strength Poisson, "
+        "and Dixon-Coles goal rates with the low-score correction turned off. "
+        "The headline pool includes the seasons used to choose the time-decay setting. "
+        "The holdout seasons are the clean figure. See the measurement notes when present.\n"
         "- Binary markets (do not rank against 1X2): dixon_coles_over_25 "
         "(market=over_under_25) and dixon_coles_btts (market=btts) are scored "
         "from the raw scoreline grid every fold. Lab-only O/U comparators: "
@@ -913,5 +1163,26 @@ def write_walkforward_artefacts(
         "See docs/EVAL_PROTOCOL.md for interpretation.\n",
         encoding="utf-8",
     )
+    if match_scores is not None and not match_scores.empty:
+        scores_path = results_dir / "walkforward_match_scores.csv"
+        match_scores.to_csv(scores_path, index=False)
+        paths["match_scores"] = scores_path
+        paired = paired_comparisons(match_scores, PUBLISHED_PAIRS)
+        paired_path = results_dir / "walkforward_paired.csv"
+        paired.to_csv(paired_path, index=False)
+        paths["paired"] = paired_path
+        holdout = match_scores.loc[
+            (match_scores["market"] == "scoreline")
+            & (match_scores["season_code"].astype(str).isin(XI_TUNE_HOLDOUT_SEASONS))
+        ]
+        if not holdout.empty:
+            holdout_summary = summarize_scoreline(holdout, run_date=str(summary["run_date"].iloc[0]))
+            holdout_path = results_dir / "walkforward_scoreline_holdout.csv"
+            holdout_summary.to_csv(holdout_path, index=False)
+            paths["scoreline_holdout"] = holdout_path
+        notes = render_measurement_notes(summary, paired, match_scores)
+        with readme.open("a", encoding="utf-8") as handle:
+            handle.write("\n")
+            handle.write(notes)
     paths["readme"] = readme
     return paths

@@ -11,12 +11,20 @@ import pandas as pd
 
 @dataclass
 class PoissonModel:
-    """Team attack/defence strengths plus home advantage."""
+    """Team attack/defence strengths plus home advantage.
+
+    ``away_base`` is the average away goals in the fit. The away rate uses
+    that base. An earlier version used ``league_avg`` (the average of home
+    and away scoring) for the away rate, then multiplied the home rate by
+    home advantage as well. Average teams were then predicted to score too
+    many away goals, and the comparison flattered Dixon-Coles.
+    """
 
     attack: dict[str, float]
     defence: dict[str, float]
     home_advantage: float
     league_avg: float
+    away_base: float
 
 
 def fit_poisson(matches: pd.DataFrame) -> PoissonModel:
@@ -38,24 +46,49 @@ def fit_poisson(matches: pd.DataFrame) -> PoissonModel:
         scored[row.away_team].append(float(row.away_goals))
         conceded[row.away_team].append(float(row.home_goals))
 
+    # A team with no goals yet would otherwise get a rate of exactly 0, and
+    # the log loss of any goal they then score would be infinite. The floor
+    # matches the Dixon-Coles moment start.
+    floor = 1e-3
     attack = {
-        t: (sum(scored[t]) / len(scored[t]) / league_avg) if scored[t] else 1.0
+        t: max((sum(scored[t]) / len(scored[t]) / league_avg) if scored[t] else 1.0, floor)
         for t in teams
     }
     defence = {
-        t: (sum(conceded[t]) / len(conceded[t]) / league_avg) if conceded[t] else 1.0
+        t: max((sum(conceded[t]) / len(conceded[t]) / league_avg) if conceded[t] else 1.0, floor)
         for t in teams
     }
 
     # Home teams score more than the overall one-side average → advantage > 1.
-    home_advantage = float(df["home_goals"].mean() / league_avg)
+    avg_home = float(df["home_goals"].mean())
+    avg_away = float(df["away_goals"].mean())
+    home_advantage = float(avg_home / league_avg)
 
     return PoissonModel(
         attack=attack,
         defence=defence,
         home_advantage=home_advantage,
         league_avg=league_avg,
+        away_base=avg_away,
     )
+
+
+def match_rates(model: PoissonModel, home_team: str, away_team: str) -> tuple[float, float]:
+    """Home and away means for one fixture.
+
+    Same shape as Dixon-Coles: home is scaled by home advantage, away is not
+    scaled by the combined average. Attack and defence stay ratios to the
+    one-side league average, so an average team predicts the sample home
+    mean and the sample away mean.
+    """
+    home_attack = model.attack.get(home_team, 1.0)
+    away_attack = model.attack.get(away_team, 1.0)
+    home_defence = model.defence.get(home_team, 1.0)
+    away_defence = model.defence.get(away_team, 1.0)
+    lambda_home = home_attack * away_defence * model.league_avg * model.home_advantage
+    lambda_away = away_attack * home_defence * model.away_base
+    # Keep every rate positive so an exact score still has a probability.
+    return float(max(lambda_home, 1e-6)), float(max(lambda_away, 1e-6))
 
 
 def predict_match(
@@ -65,14 +98,7 @@ def predict_match(
     max_goals: int = 8,
 ) -> dict[str, float]:
     """Return home/draw/away probabilities that sum to 1."""
-    # Unknown teams fall back to league-average strength (1.0).
-    home_attack = model.attack.get(home_team, 1.0)
-    away_attack = model.attack.get(away_team, 1.0)
-    home_defence = model.defence.get(home_team, 1.0)
-    away_defence = model.defence.get(away_team, 1.0)
-
-    lambda_home = home_attack * away_defence * model.league_avg * model.home_advantage
-    lambda_away = away_attack * home_defence * model.league_avg
+    lambda_home, lambda_away = match_rates(model, home_team, away_team)
 
     # Probability of exactly k goals under a Poisson with mean λ.
     goals = np.arange(0, max_goals + 1)

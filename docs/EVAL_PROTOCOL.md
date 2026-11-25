@@ -42,7 +42,7 @@ Walk-forward evaluation scores each round using only matches dated **strictly ea
 python -m src.evaluate --mode walkforward
 ```
 
-Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv`, `results/calibration_*_home.png`, `results/WALKFORWARD.md`
+Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv`, `results/walkforward_match_scores.csv`, `results/walkforward_paired.csv`, `results/walkforward_scoreline_holdout.csv`, `results/calibration_*_home.png`, `results/WALKFORWARD.md`
 
 **Gameweek construction.** Historical CSVs from football-data.co.uk do not include an official gameweek field. Matches are sorted by date within each season and grouped into sequential rounds of up to **10** games (approximately one Premier League round). This definition is for evaluation only. Product UI may group fixtures by calendar weekend without changing the research protocol.
 
@@ -57,7 +57,7 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | Line | Description |
 |---|---|
 | Naive frequencies | Historical home/draw/away rates from the train window |
-| Poisson | Independent Poisson goals model (attack, defence, home advantage) |
+| Poisson | Independent Poisson goals model (attack, defence, home advantage). The away rate uses the average away goals, not the blended home-and-away average |
 | Dixon–Coles (raw) | Time-decayed Dixon–Coles 1X2 from the scoreline grid |
 | Dixon–Coles (calibrated) | Temperature-scaled 1X2; walk-forward only, after a prior-fold warm-start |
 | Elo | Rating comparator (1X2 only) |
@@ -80,7 +80,7 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 
 **Lab O/U note.** Dixon–Coles τ reshuffles mass among 0–0 / 1–0 / 0–1 / 1–1 but preserves O/U 2.5 mass at fixed λ, μ. So `poisson_total_over_25` ≈ grid O/U up to finite-grid truncation — useful as a hygiene check, not a promotion candidate. The line that can diverge is `totals_logistic_over_25`. See `docs/notes/2026-11-16-ou-lab-decision.md` for the walk-forward decision.
 
-**Do not rank binary markets against 1X2.** Binary O/U and BTTS log loss are two-class scores. 1X2 log loss is a three-class score. Those numbers are not comparable; filter on `market` (or the model name suffix) and never sort the full CSV as one league table.
+**Do not rank lines that were not scored on the same matches.** Binary O/U and BTTS log loss are two-class scores. 1X2 log loss is a three-class score. Scoreline log loss is the log loss of one cell in the score table. Those numbers are not comparable. Filter on `market` and never sort the full CSV as one league table. Calibrated and blend rows also cover fewer matches than the raw line. Compare those on the paired table, which keeps one match set and prints the count.
 
 **Time decay (ξ).** Dixon–Coles match weights are \(e^{-\xi t}\) with \(t\) in days. ξ is a **frozen config constant** (`DIXON_COLES_XI`), not jointly estimated with attack, defence, home advantage, or ρ. The value is chosen by the nested protocol below (not by in-likelihood MLE).
 
@@ -135,6 +135,33 @@ Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv
 | `results/walkforward_by_gameweek.csv` | Metrics by round |
 | `results/calibration_*.png` | Reliability plots |
 | `results/WALKFORWARD.md` | Reproduce steps beside the artefacts |
+
+## Scoreline
+
+The walk-forward also scores the exact score, on the same matches as the raw Dixon-Coles 1X2 line. The market label is `scoreline`, so those rows are not sorted against 1X2 log loss.
+
+| Line | Meaning |
+|---|---|
+| Dixon-Coles | Log loss of the cell for the score that happened, from the same grid as the 1X2 line |
+| Dixon-Coles with the low-score correction off | The same home and away rates, with the low-score correction set to zero |
+| Team-strength Poisson | Attack and defence, with each side's own average goal rate. This is the fixed Poisson baseline |
+| Constant Poisson | One home rate and one away rate, the averages of earlier matches. No team strength |
+| League score frequencies | The share of earlier matches that finished with that score. A score that has not occurred yet is given probability 1/(n+1), where n is the number of earlier matches. Scores that have occurred keep their raw share |
+| Always 1-1 | Hit rate only. A single picked score has no probability table, so it has no log loss |
+
+Also recorded, on the same matches: whether the most likely score happened, whether the score was one of the three most likely, the average absolute error of home goals, away goals and the total, and a ranked score of the goal difference (home goals minus away goals, from -8 to +8). Lower is better on the ranked score. A side that scores 9 or more is not a cell of the 0-to-8 grid. Its probability is the untruncated Poisson probability of that exact score, which is finite. It is not moved into the 8-goal cell.
+
+The headline pool includes seasons `2223`, `2324` and `2425`. Those seasons were used to choose the time-decay setting, so the headline is not a clean test of that choice. The clean figure is the holdout, seasons `2526` and `2627`. When the setting was chosen, that holdout was 480 matches (`results/XI_TUNE.md`). Later matches in those seasons were not used to choose the setting either. The holdout file reports its own match count. Do not use the holdout to choose the next setting, and do not rank the holdout rows against the headline rows.
+
+## Paired gaps
+
+`results/walkforward_paired.csv` is the comparison table. Each row is model A minus model B on one shared set of matches. For log loss, a positive number means A put less probability on what happened. For a hit rate, a positive number means A was right more often.
+
+The range is a 95% percentile interval from 4000 resamples of whole rounds, seed `20261124`. Resampling whole rounds keeps the ten matches in a round together. A range that contains zero has not separated the two lines on this sample. Every gap in the notes names that range and the match count.
+
+Per-match scores are in `results/walkforward_match_scores.csv`, so a range can be rebuilt without fitting the models again.
+
+The closing book is the competitor on the result markets. A smaller log loss than the book is not a win over the book. This scoreline table does not contain a bookmaker score table. Closing prices are not a full grid of exact scores.
 
 ## Leakage policy
 
