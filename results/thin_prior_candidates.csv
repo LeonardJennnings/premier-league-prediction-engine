@@ -1,0 +1,7 @@
+kappa,early_scoreline_log_loss,early_matches,overall_scoreline_log_loss,overall_matches,early_result_log_loss,overall_result_log_loss,chosen
+0.0,3.1269,328,3.0928,940,0.9605,0.9612,False
+2.0,3.0058,328,3.045,940,0.9557,0.958,False
+4.0,2.9974,328,3.0383,940,0.9557,0.9572,False
+8.0,2.9877,328,3.0305,940,0.9558,0.9566,False
+16.0,2.9801,328,3.0249,940,0.9574,0.958,False
+32.0,2.9797,328,3.0266,940,0.9624,0.9635,True

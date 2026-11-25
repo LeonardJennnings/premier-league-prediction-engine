@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.models.dixon_coles import (
     fit_dixon_coles,
@@ -88,6 +89,95 @@ def test_mean_attack_near_one():
     model = fit_dixon_coles(_toy_matches())
     mean_att = sum(model.attack.values()) / len(model.attack)
     assert abs(mean_att - 1.0) < 1e-5
+
+
+def _two_season_matches() -> pd.DataFrame:
+    """A long-history club and a new club with the same short, low-scoring run."""
+    rows = []
+    start = pd.Timestamp("2023-08-01")
+    regulars = ["Alpha", "Beta", "Gamma"]
+    for i in range(36):
+        home = regulars[i % 3]
+        away = regulars[(i + 1) % 3]
+        rows.append(
+            {
+                "season_code": "2324",
+                "date": start + pd.Timedelta(days=i * 4),
+                "home_team": home,
+                "away_team": away,
+                "home_goals": 2,
+                "away_goals": 1,
+            }
+        )
+    later = pd.Timestamp("2024-08-10")
+    # NewClub and the regulars. NewClub has not been seen before and scores nothing.
+    for i, opponent in enumerate(regulars):
+        rows.append(
+            {
+                "season_code": "2425",
+                "date": later + pd.Timedelta(days=i * 7),
+                "home_team": "NewClub",
+                "away_team": opponent,
+                "home_goals": 0,
+                "away_goals": 3,
+            }
+        )
+        rows.append(
+            {
+                "season_code": "2425",
+                "date": later + pd.Timedelta(days=i * 7 + 1),
+                "home_team": opponent,
+                "away_team": "NewClub",
+                "home_goals": 3,
+                "away_goals": 0,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def test_short_history_moves_more_than_a_long_one():
+    frame = _two_season_matches()
+    base = fit_dixon_coles(frame, prior_kappa=0.0)
+    pulled = fit_dixon_coles(frame, prior_kappa=32.0, promoted_factor=0.75)
+
+    def move(team: str) -> float:
+        return abs(math.log(base.attack[team]) - math.log(pulled.attack[team]))
+
+    assert move("NewClub") > move("Alpha")
+    mean_att = sum(pulled.attack.values()) / len(pulled.attack)
+    assert abs(mean_att - 1.0) < 1e-5
+
+
+def test_new_club_starts_lower_when_the_fixed_factor_is_lower():
+    frame = _two_season_matches()
+    level = fit_dixon_coles(frame, prior_kappa=80.0, promoted_factor=1.0)
+    lower = fit_dixon_coles(frame, prior_kappa=80.0, promoted_factor=0.75)
+    assert lower.attack["NewClub"] < level.attack["NewClub"]
+    assert "NewClub" in lower.attack
+
+
+def test_unseen_club_uses_the_new_club_start_only_when_the_prior_is_on():
+    from src.models.dixon_coles import expected_goals
+
+    frame = _toy_matches()
+    off = fit_dixon_coles(frame, prior_kappa=0.0)
+    on = fit_dixon_coles(frame, prior_kappa=20.0, promoted_factor=0.75)
+    assert off.prior_kappa == 0.0
+    assert off.new_club_attack == 1.0
+    assert on.prior_kappa == 20.0
+    assert on.new_club_attack < 1.0
+    # The new-club defence sits above the fitted clubs' typical defence,
+    # and the new-club attack sits below an average attack.
+    typical_defence = math.exp(
+        sum(math.log(rate) for rate in on.defence.values()) / len(on.defence)
+    )
+    assert on.new_club_defence > typical_defence
+    lam_off, _ = expected_goals(off, "Nobody", "Alpha")
+    lam_on, _ = expected_goals(on, "Nobody", "Alpha")
+    assert lam_off == pytest.approx(off.defence["Alpha"] * off.home_advantage)
+    assert lam_on == pytest.approx(
+        on.new_club_attack * on.defence["Alpha"] * on.home_advantage
+    )
 
 
 def test_optimizer_success_false_falls_back_to_poisson_init_rho_zero(monkeypatch):

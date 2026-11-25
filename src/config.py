@@ -27,6 +27,23 @@ BASE_URL = "https://www.football-data.co.uk/mmz4281"
 DIXON_COLES_XI = 0.0035
 DIXON_COLES_MAX_GOALS = 8
 DIXON_COLES_L2 = 0.01
+# Thin-data prior. Strength 0 leaves the L2 penalty above as the published fit.
+# A positive strength replaces that penalty. 32 was kept on 25 Nov 2026:
+# early-match scoreline log loss was lower on seasons 2526 and 2627, and the
+# overall scores were not higher. See results/THIN_DATA_PRIOR.md.
+DIXON_COLES_PRIOR_KAPPA = 32.0
+# Fixed before the run. A club with no match in the previous season is started
+# this far below an average club. Not searched. 1 would mean no shift.
+THIN_PRIOR_PROMOTED_FACTOR = 0.75
+# Pseudo-match strengths tried on the setting seasons only. 0 is the previous fit.
+# 8 is about even with a club's first eight matches. The steps around it are
+# halves and doubles. No other strength is tried after looking.
+THIN_PRIOR_CANDIDATES = (0.0, 2.0, 4.0, 8.0, 16.0, 32.0)
+THIN_PRIOR_EARLY_MATCHES = 8
+# Same split as the time-decay tune. The first three seasons pick this strength.
+# The last two are scored after it is frozen, and are not used to pick it.
+THIN_PRIOR_SETTING_SEASONS = ("2223", "2324", "2425")
+THIN_PRIOR_LATER_SEASONS = ("2526", "2627")
 # Nested ξ tune: select on older seasons, freeze, score recent holdout.
 # Half-lives ≈ ln(2)/ξ days: 1386, 693, 365, 277, 198, 139, 87, 58.
 XI_TUNE_CANDIDATES = (0.0005, 0.0010, 0.0019, 0.0025, 0.0035, 0.0050, 0.0080, 0.0120)

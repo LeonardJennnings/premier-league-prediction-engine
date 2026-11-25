@@ -91,6 +91,9 @@ def load_artefact(
         rho=float(payload["rho"]),
         xi=float(payload["xi"]),
         as_of=as_of,
+        prior_kappa=float(payload.get("prior_kappa", 0.0) or 0.0),
+        new_club_attack=float(payload.get("new_club_attack", 1.0) or 1.0),
+        new_club_defence=float(payload.get("new_club_defence", 1.0) or 1.0),
     )
     temperature = float(payload["temperature"])
     hyperparams = dict(payload.get("hyperparams") or {})
@@ -107,6 +110,9 @@ def _model_payload(
         "rho": float(model.rho),
         "xi": float(model.xi),
         "as_of": _as_of_to_json(model.as_of),
+        "prior_kappa": float(getattr(model, "prior_kappa", 0.0)),
+        "new_club_attack": float(getattr(model, "new_club_attack", 1.0)),
+        "new_club_defence": float(getattr(model, "new_club_defence", 1.0)),
         "temperature": float(temperature),
         "hyperparams": hyperparams,
     }

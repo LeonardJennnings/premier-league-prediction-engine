@@ -1,0 +1,9 @@
+comparison,model_a,model_b,mean_diff,ci_low,ci_high,n_matches,n_rounds,n_bootstrap,seed,note,mean_diff_exact
+later_early_scoreline,thin_prior,dixon_coles,-0.1213,-0.2816,0.0078,270,27,4000,20261124,A negative difference means the first line has the lower log loss.,-0.12134223583418152
+later_early_1x2,thin_prior,dixon_coles,-0.0601,-0.1925,0.033,270,27,4000,20261124,A negative difference means the first line has the lower log loss.,-0.06010059198311063
+later_overall_scoreline,thin_prior,dixon_coles,-0.0739,-0.1635,-0.002,490,49,4000,20261124,A negative difference means the first line has the lower log loss.,-0.07391953815988885
+later_overall_1x2,thin_prior,dixon_coles,-0.03,-0.1042,0.0231,490,49,4000,20261124,A negative difference means the first line has the lower log loss.,-0.029999722516622
+later_new_early_scoreline,thin_prior,dixon_coles,-0.4493,-0.9791,-0.0213,77,27,4000,20261124,A negative difference means the first line has the lower log loss.,-0.4493083919251855
+setting_early_scoreline,prior_32,dixon_coles,-0.1473,-0.2622,-0.0546,328,34,4000,20261124,A negative difference means the first line has the lower log loss.,-0.1472526435596529
+later_book_prior,thin_prior,bookmaker_implied,0.0213,0.0056,0.0368,490,49,4000,20261124,A negative difference means the first line has the lower log loss. The closing line is the competitor. This is not a claim about the bookmaker.,0.021315665708491627
+later_book_previous,dixon_coles,bookmaker_implied,0.0513,-0.0021,0.1225,490,49,4000,20261124,A negative difference means the first line has the lower log loss. The closing line is the competitor. This is not a claim about the bookmaker.,0.05131538822511363

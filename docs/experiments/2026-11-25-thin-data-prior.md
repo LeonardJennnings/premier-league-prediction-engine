@@ -31,3 +31,7 @@ The previous model stays the published one. The note in `results/` records the p
 ## Expected
 
 The review that prompted this note measured the current season as 1.142 for Dixon-Coles and 1.035 for Elo, on the same 110 matches, with the bookmaker at 1.023. That review did not attach a range, so those three figures are the motive, not a settled gap. The hope is a clear improvement on a club's first eight or so matches, and an overall change of 0.000 to 0.005 nats. That range is an expectation, not a target to hit.
+
+## After the run
+
+The sections above were written before the run. They stay the rules. The paired gaps, the ranges, and the match counts are in `results/THIN_DATA_PRIOR.md`.

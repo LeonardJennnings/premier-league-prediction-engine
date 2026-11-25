@@ -217,11 +217,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Premier League evaluation")
     parser.add_argument(
         "--mode",
-        choices=("season", "walkforward", "xi_tune"),
+        choices=("season", "walkforward", "xi_tune", "thin_prior"),
         default="season",
         help=(
             "season = fixed 2526 gate; walkforward = gameweek walk-forward; "
-            "xi_tune = nested ξ selection on older folds + holdout report"
+            "xi_tune = nested ξ selection on older folds + holdout report; "
+            "thin_prior = one strength for thin clubs, chosen on earlier seasons"
         ),
     )
     args = parser.parse_args()
@@ -231,6 +232,19 @@ if __name__ == "__main__":
         out = save_results(table)
         logger.info("\n%s", table.to_string(index=False))
         logger.info("Saved %s", out)
+    elif args.mode == "thin_prior":
+        from src.eval.thin_prior import run_thin_prior, write_thin_prior_artefacts
+
+        result = run_thin_prior()
+        paths = write_thin_prior_artefacts(result)
+        logger.info(
+            "Strength %.4g dropped=%s (%s)",
+            result.chosen_kappa,
+            result.dropped,
+            result.reason,
+        )
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)
     elif args.mode == "xi_tune":
         from src.eval.xi_tune import run_xi_tune, write_xi_tune_artefacts
 
