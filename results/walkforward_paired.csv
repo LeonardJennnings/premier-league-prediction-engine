@@ -5,8 +5,12 @@ scoreline_log_loss,dixon_coles,poisson,all,1430,143,0.0055,-0.0135,0.0262,4000,2
 scoreline_log_loss,dixon_coles,dixon_coles_rho0,all,1430,143,0.0008,-0.002,0.0036,4000,20261124,A positive difference means the first line has the higher log loss
 scoreline_hit,dixon_coles,always_1_1,all,1430,143,-0.0056,-0.0238,0.0119,4000,20261124,A positive difference means the first line was right more often
 scoreline_hit,dixon_coles,league_score_frequencies,all,1430,143,-0.0014,-0.0168,0.014,4000,20261124,A positive difference means the first line was right more often
+scoreline_log_loss,dixon_coles,book_score_reconstruction,all,1430,143,0.0995,0.0608,0.1419,4000,20261124,A positive difference means the first line has the higher log loss
+scoreline_hit,dixon_coles,book_score_reconstruction,all,1430,143,-0.0182,-0.0343,-0.0021,4000,20261124,A positive difference means the first line was right more often
+scoreline_log_loss,book_score_reconstruction_open,book_score_reconstruction,all,1430,143,0.0098,0.0043,0.0151,4000,20261124,A positive difference means the first line has the higher log loss
 scoreline_log_loss,dixon_coles,league_score_frequencies,holdout,490,49,0.0141,-0.0702,0.116,4000,20261124,A positive difference means the first line has the higher log loss
 scoreline_log_loss,dixon_coles,constant_poisson,holdout,490,49,0.0219,-0.0596,0.121,4000,20261124,A positive difference means the first line has the higher log loss
+scoreline_log_loss,dixon_coles,book_score_reconstruction,holdout,490,49,0.1027,0.0297,0.1934,4000,20261124,A positive difference means the first line has the higher log loss
 1x2_log_loss,dixon_coles,bookmaker_implied,all,1430,143,0.0338,0.0128,0.0606,4000,20261124,A positive difference means the first line has the higher log loss
 1x2_log_loss,dixon_coles,bookmaker_implied,holdout,490,49,0.0513,-0.0021,0.1225,4000,20261124,A positive difference means the first line has the higher log loss
 1x2_log_loss,dixon_coles,poisson,all,1430,143,-0.004,-0.0144,0.0084,4000,20261124,A positive difference means the first line has the higher log loss

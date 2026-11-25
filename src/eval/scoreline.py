@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import DIXON_COLES_MAX_GOALS, XI_TUNE_HOLDOUT_SEASONS, XI_TUNE_SEASONS
+from src.eval.book_grid import BOOK_SCORE_TABLE_LABEL, fidelity_gap
 from src.models.dixon_coles import scoreline_grid_from_rates, tau
 
 # Resamples of whole rounds. Fixed seed so a committed range can be rebuilt.
@@ -419,8 +420,12 @@ PUBLISHED_PAIRS: tuple[tuple[str, str, str, str, str], ...] = (
     ("scoreline", "loss", "dixon_coles", "dixon_coles_rho0", "all"),
     ("scoreline", "hit", "dixon_coles", "always_1_1", "all"),
     ("scoreline", "hit", "dixon_coles", "league_score_frequencies", "all"),
+    ("scoreline", "loss", "dixon_coles", "book_score_reconstruction", "all"),
+    ("scoreline", "hit", "dixon_coles", "book_score_reconstruction", "all"),
+    ("scoreline", "loss", "book_score_reconstruction_open", "book_score_reconstruction", "all"),
     ("scoreline", "loss", "dixon_coles", "league_score_frequencies", "holdout"),
     ("scoreline", "loss", "dixon_coles", "constant_poisson", "holdout"),
+    ("scoreline", "loss", "dixon_coles", "book_score_reconstruction", "holdout"),
     ("1x2", "loss", "dixon_coles", "bookmaker_implied", "all"),
     ("1x2", "loss", "dixon_coles", "bookmaker_implied", "holdout"),
     ("1x2", "loss", "dixon_coles", "poisson", "all"),
@@ -486,6 +491,8 @@ def render_measurement_notes(
         "poisson": "Team-strength Poisson (attack, defence, each side's own average rate)",
         "dixon_coles_rho0": "Dixon-Coles goal rates with the low-score correction turned off",
         "dixon_coles": "Dixon-Coles",
+        "book_score_reconstruction": "Closing prices: " + BOOK_SCORE_TABLE_LABEL,
+        "book_score_reconstruction_open": "Opening prices: " + BOOK_SCORE_TABLE_LABEL,
     }
     order = list(descriptions)
     for model in order:
@@ -563,4 +570,38 @@ def render_measurement_notes(
             "",
         ]
     )
+    if "market" in match_scores.columns:
+        checks = match_scores.loc[match_scores["market"] == "book_grid_check"]
+    else:
+        checks = match_scores.iloc[0:0]
+    if not checks.empty:
+        lines.extend(
+            [
+                "### Rebuilt book score table",
+                "",
+                (
+                    f"{BOOK_SCORE_TABLE_LABEL}. "
+                    "Two goal rates are chosen so a Poisson table, with the low-score correction left at zero, "
+                    "matches the de-vigged home, draw and away prices and the de-vigged over/under 2.5 price. "
+                    "The lines below are on the same matches as the scoreline table. "
+                    "A smaller scoreline log loss than Dixon-Coles is not a win over the book."
+                ),
+                "",
+            ]
+        )
+        for model_name, part in checks.groupby("model", sort=True):
+            gap = fidelity_gap(part.to_dict("records"))
+            which = "Closing" if model_name == "book_score_reconstruction" else "Opening"
+            lines.append(
+                (
+                    f"- {which} prices, {int(gap['n_matches'])} matches. "
+                    f"Rebuilt home/draw/away log loss {gap['loss_1x2_grid']:.4f}, "
+                    f"raw prices {gap['loss_1x2_price']:.4f}, "
+                    f"difference {gap['gap_1x2']:.4f}. "
+                    f"Rebuilt over/under 2.5 log loss {gap['loss_ou_grid']:.4f}, "
+                    f"raw prices {gap['loss_ou_price']:.4f}, "
+                    f"difference {gap['gap_ou']:.4f}."
+                )
+            )
+        lines.append("")
     return "\n".join(lines)

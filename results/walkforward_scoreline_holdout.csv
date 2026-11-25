@@ -1,5 +1,7 @@
 run_date,model,market,n_folds,n_test,log_loss,brier,accuracy,aggregation,modal_hit,top3_hit,mae_home,mae_away,rmse_home,rmse_away,mae_total,rps
 2026-11-25,always_1_1,scoreline,49,490,,,0.1204,pooled,0.1204,,,,,,,
+2026-11-25,book_score_reconstruction,scoreline,49,490,2.89,,0.1265,pooled,0.1265,0.3102,0.9498,0.8439,1.1554,1.0582,1.2722,0.8538
+2026-11-25,book_score_reconstruction_open,scoreline,49,490,2.8975,,0.1184,pooled,0.1184,0.3041,0.9545,0.8499,1.1587,1.0656,1.281,0.8554
 2026-11-25,constant_poisson,scoreline,49,490,2.9707,,0.1204,pooled,0.1204,0.2694,1.0214,0.9083,1.2126,1.0965,1.259,0.9161
 2026-11-25,dixon_coles,scoreline,49,490,2.9927,,0.1102,pooled,0.1102,0.2857,0.9768,0.8574,1.1945,1.0853,1.304,0.8777
 2026-11-25,dixon_coles_rho0,scoreline,49,490,2.9938,,0.1061,pooled,0.1061,0.2837,0.9768,0.8574,1.1945,1.0853,1.304,0.878

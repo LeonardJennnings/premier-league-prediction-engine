@@ -42,7 +42,7 @@ Walk-forward evaluation scores each round using only matches dated **strictly ea
 python -m src.evaluate --mode walkforward
 ```
 
-Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv`, `results/walkforward_match_scores.csv`, `results/walkforward_paired.csv`, `results/walkforward_scoreline_holdout.csv`, `results/calibration_*_home.png`, `results/WALKFORWARD.md`
+Outputs: `results/walkforward_summary.csv`, `results/walkforward_by_gameweek.csv`, `results/walkforward_match_scores.csv`, `results/walkforward_paired.csv`, `results/walkforward_scoreline_holdout.csv`, `results/walkforward_book_grid_check.csv`, `results/calibration_*_home.png`, `results/WALKFORWARD.md`
 
 **Gameweek construction.** Historical CSVs from football-data.co.uk do not include an official gameweek field. Matches are sorted by date within each season and grouped into sequential rounds of up to **10** games (approximately one Premier League round). This definition is for evaluation only. Product UI may group fixtures by calendar weekend without changing the research protocol.
 
@@ -163,7 +163,9 @@ The range is a 95% percentile interval from 4000 resamples of whole rounds, seed
 
 Per-match scores are in `results/walkforward_match_scores.csv`, so a range can be rebuilt without fitting the models again.
 
-The closing book is the competitor on the result markets. A smaller log loss than the book is not a win over the book. This scoreline table does not contain a bookmaker score table. Closing prices are not a full grid of exact scores.
+The closing book is the competitor on the result markets. A smaller log loss than the book is not a win over the book.
+
+There is no free correct-score price. When the de-vigged home, draw, away and over/under 2.5 prices are all present, the walk-forward also scores our reconstruction of the book's score table from its prices, not the bookmaker's correct-score odds. Two goal rates are chosen so a Poisson table, with the low-score correction left at zero, matches those four prices. Closing prices and opening prices are rebuilt separately, and each row is kept only when it covers the same matches as the other scoreline rows. The run stops if the rebuilt home/draw/away log loss, or the rebuilt over/under 2.5 log loss, is more than 0.005 away from the raw prices. That check is in `results/walkforward_book_grid_check.csv`.
 
 ## Leakage policy
 

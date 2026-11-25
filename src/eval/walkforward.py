@@ -18,6 +18,15 @@ from src.config import (
     RESULTS,
     XI_TUNE_HOLDOUT_SEASONS,
 )
+from src.eval.book_grid import (
+    BOOK_RECONSTRUCTIONS,
+    BOOK_SCORE_TABLE_LABEL,
+    assert_prices_reproduced,
+    fidelity_gap,
+    fit_book_grid,
+    market_log_losses,
+    prices_complete,
+)
 from src.eval.blend import (
     apply_benter_blend,
     apply_binary_logodds_blend,
@@ -406,6 +415,63 @@ def _record_scoreline(
         )
 
 
+def _record_book_reconstruction(
+    bucket: list[dict],
+    model: str,
+    identities: list[dict],
+    test: pd.DataFrame,
+    prefix: str,
+) -> None:
+    """Fit one Poisson table per match and score it on the same rows as the other lines.
+
+    ``prefix`` is ``""`` for closing prices and ``"_open"`` for opening prices.
+    The check rows are a separate market, so they do not change the scoreline match count.
+    """
+    grids: list[np.ndarray] = []
+    rates: list[tuple[float, float, float]] = []
+    for ident, row in zip(identities, test.itertuples(index=False)):
+        fitted = fit_book_grid(
+            getattr(row, f"implied_home{prefix}"),
+            getattr(row, f"implied_draw{prefix}"),
+            getattr(row, f"implied_away{prefix}"),
+            getattr(row, f"implied_over_25{prefix}"),
+        )
+        grids.append(fitted.grid)
+        rates.append((fitted.lam, fitted.mu, 0.0))
+        losses = market_log_losses(
+            result=ident["result"],
+            home_goals=ident["home_goals"],
+            away_goals=ident["away_goals"],
+            price_home=float(getattr(row, f"implied_home{prefix}")),
+            price_draw=float(getattr(row, f"implied_draw{prefix}")),
+            price_away=float(getattr(row, f"implied_away{prefix}")),
+            price_over=float(getattr(row, f"implied_over_25{prefix}")),
+            price_under=float(getattr(row, f"implied_under_25{prefix}")),
+            grid_home=fitted.home,
+            grid_draw=fitted.draw,
+            grid_away=fitted.away,
+            grid_over=fitted.over_25,
+            grid_under=fitted.under_25,
+        )
+        bucket.append(
+            {
+                "match_id": ident["match_id"],
+                "round_id": ident["round_id"],
+                "season_code": ident["season_code"],
+                "gameweek": ident["gameweek"],
+                "market": "book_grid_check",
+                "model": model,
+                "loss": float("nan"),
+                "hit": float("nan"),
+                "lam": fitted.lam,
+                "mu": fitted.mu,
+                "squared_error": fitted.squared_error,
+                **losses,
+            }
+        )
+    _record_scoreline(bucket, model, identities, grids, rates)
+
+
 def _record_always_one_one(bucket: list[dict], identities: list[dict]) -> None:
     """Hit rate of the constant pick 1-1. No cell probability, so no log loss."""
     for ident in identities:
@@ -603,6 +669,9 @@ def run_walkforward(
         )
         _record_scoreline(match_scores, "constant_poisson", identities, const_grid, const_rates)
         _record_always_one_one(match_scores, identities)
+        for model_name, prefix, columns in BOOK_RECONSTRUCTIONS:
+            if prices_complete(test, columns):
+                _record_book_reconstruction(match_scores, model_name, identities, test, prefix)
         by_gw_rows.append(
             _metric_row(run_at, "dixon_coles", season, gw, len(train), y_all, dc_P)
         )
@@ -1058,6 +1127,24 @@ def run_walkforward(
     core_by_gw = by_gw.loc[by_gw["market"] != "scoreline"] if "market" in by_gw.columns else by_gw
     summary = _pooled_summary(core_by_gw, pred_frames, run_at)
     match_frame = pd.DataFrame(match_scores)
+    if not match_frame.empty and "market" in match_frame.columns:
+        checks = match_frame.loc[match_frame["market"] == "book_grid_check"]
+        for model_name, part in checks.groupby("model", sort=True):
+            assert_prices_reproduced(part.to_dict("records"))
+        scoreline_ids = {
+            model_name: set(part["match_id"])
+            for model_name, part in match_frame.loc[match_frame["market"] == "scoreline"].groupby("model")
+        }
+        headline_ids = scoreline_ids.get("dixon_coles", set())
+        for model_name, _prefix, _columns in BOOK_RECONSTRUCTIONS:
+            if model_name not in scoreline_ids:
+                continue
+            if scoreline_ids[model_name] != headline_ids:
+                raise ValueError(
+                    f"{model_name} was rebuilt on {len(scoreline_ids[model_name])} matches "
+                    f"and Dixon-Coles on {len(headline_ids)}. "
+                    "Those rows are not one comparison."
+                )
     if not match_frame.empty:
         scoreline_summary = summarize_scoreline(match_frame, run_date=run_at)
         summary = pd.concat([summary, scoreline_summary], ignore_index=True)
@@ -1129,7 +1216,10 @@ def write_walkforward_artefacts(
         "league score frequencies, a no-team-strength Poisson, the team-strength Poisson, "
         "and Dixon-Coles goal rates with the low-score correction turned off. "
         "The headline pool includes the seasons used to choose the time-decay setting. "
-        "The holdout seasons are the clean figure. See the measurement notes when present.\n"
+        "The holdout seasons are the clean figure. See the measurement notes when present. "
+        f"When the price columns are present, the same matches also carry {BOOK_SCORE_TABLE_LABEL}. "
+        "Opening and closing reconstructions are separate rows. "
+        "A rebuilt table that misses the raw prices by more than 0.005 log loss stops the run.\n"
         "- Binary markets (do not rank against 1X2): dixon_coles_over_25 "
         "(market=over_under_25) and dixon_coles_btts (market=btts) are scored "
         "from the raw scoreline grid every fold. Lab-only O/U comparators: "
@@ -1180,6 +1270,31 @@ def write_walkforward_artefacts(
             holdout_path = results_dir / "walkforward_scoreline_holdout.csv"
             holdout_summary.to_csv(holdout_path, index=False)
             paths["scoreline_holdout"] = holdout_path
+        if "market" in match_scores.columns:
+            checks = match_scores.loc[match_scores["market"] == "book_grid_check"]
+            if not checks.empty:
+                check_rows = []
+                for model_name, part in checks.groupby("model", sort=True):
+                    gap = fidelity_gap(part.to_dict("records"))
+                    check_rows.append(
+                        {
+                            "model": model_name,
+                            "n_matches": int(gap["n_matches"]),
+                            "log_loss_1x2_grid": gap["loss_1x2_grid"],
+                            "log_loss_1x2_price": gap["loss_1x2_price"],
+                            "gap_1x2": gap["gap_1x2"],
+                            "log_loss_ou_grid": gap["loss_ou_grid"],
+                            "log_loss_ou_price": gap["loss_ou_price"],
+                            "gap_ou": gap["gap_ou"],
+                            "mean_lam": float(part["lam"].mean()),
+                            "mean_mu": float(part["mu"].mean()),
+                            "mean_squared_error": float(part["squared_error"].mean()),
+                            "label": BOOK_SCORE_TABLE_LABEL,
+                        }
+                    )
+                check_path = results_dir / "walkforward_book_grid_check.csv"
+                pd.DataFrame(check_rows).to_csv(check_path, index=False)
+                paths["book_grid_check"] = check_path
         notes = render_measurement_notes(summary, paired, match_scores)
         with readme.open("a", encoding="utf-8") as handle:
             handle.write("\n")
