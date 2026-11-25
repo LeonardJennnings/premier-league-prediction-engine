@@ -1,7 +1,8 @@
 /**
  * Thin read-only client for the Epic 4 Predictions API.
  *
- * Base URL: set `PUBLIC_PREDICTIONS_API_BASE` (e.g. http://127.0.0.1:8000).
+ * Base URL: set `PUBLIC_PREDICTIONS_API_BASE` only when a live API should be called.
+ * Unset means the public pages stay on the committed ledger and do not call localhost.
  * No trailing slash. The UI never triggers fit/publish/settle.
  */
 
@@ -13,11 +14,9 @@ import type {
   WeeksResponse,
 } from "./types";
 
-const DEFAULT_BASE = "http://127.0.0.1:8000";
-
 export function getApiBase(): string {
   const raw = import.meta.env.PUBLIC_PREDICTIONS_API_BASE as string | undefined;
-  const base = (raw && raw.trim()) || DEFAULT_BASE;
+  const base = raw?.trim() ?? "";
   return base.replace(/\/$/, "");
 }
 

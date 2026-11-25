@@ -25,6 +25,7 @@ export default function MethodPeeks({
   useEffect(() => {
     let cancelled = false;
     const base = apiBase.replace(/\/$/, "");
+    if (!base) return;
 
     async function refresh() {
       try {
@@ -84,7 +85,7 @@ export default function MethodPeeks({
       {refreshNote && (
         <p
           role="status"
-          style={{ margin: "0 0 12px", fontSize: "0.72rem", color: "var(--ink-soft)" }}
+          style={{ margin: "0 0 12px", fontSize: "0.92rem", color: "var(--ink-soft)" }}
         >
           {refreshNote}
         </p>

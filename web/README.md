@@ -1,79 +1,45 @@
 # Public weekend site (Epic 5)
 
-Astro static site for **weekend + past + how-it-works**. Reads the Epic 4 Predictions API only — never fits or publishes.
+Astro static site for the weekend slate, the past scorecard, and a short method page. A production build reads the committed ledger files and does not call an API.
+
+| File | What the page uses it for |
+|---|---|
+| `src/data/ledger-upcoming.json` | Matches still to kick off, grouped by matchday |
+| `src/data/ledger-settled.json` | Finished, postponed, and pending matches |
+| `src/data/ledger-scorecard.json` | Counts and averages, each with its match count |
+
+`python -m src.jobs.daily` rewrites those three files. Rebuild the site after that commit.
 
 ## Pages
 
 | Route | Job |
 |---|---|
-| `/` | This weekend’s model vs book 1X2 strips (+ BTTS / O/U; book O2.5 when present) |
-| `/past` | Settled week index, latest scorecard, hit/miss waffle peeks |
-| `/past/[iso_week]` | One immutable ISO week |
-| `/how-it-works` | Short method slides + store-derived peeks |
+| `/` | This matchday's most likely score, most likely result, expected goals, and the book beside the model |
+| `/past` | Every settled match, predicted against actual, plus the scorecard |
+| `/past/[matchday]` | One matchday, including a Monday game that belongs to that round |
+| `/how-it-works` | Short method notes |
 
-## Env
+Sample rows appear only when `PUBLIC_SHOW_SAMPLE=1`. Leave that unset for a production build.
 
-Copy `.env.example` → `.env`:
+The site does not call `127.0.0.1` unless `PUBLIC_PREDICTIONS_API_BASE` is set. The public pages do not need that variable.
 
-```bash
-PUBLIC_PREDICTIONS_API_BASE=http://127.0.0.1:8000
-```
+## Hosting
 
-On the API side (repo root `.env`), allow the Astro origin **and** whatever origin serves the static `dist/` (needed for client refresh):
+The build is a static `dist/` directory. No server and no fixture token. On Vercel, set the project root to `web`, the build command to `npm run build`, and the output directory to `dist`. Do not add `FOOTBALL_DATA_ORG_TOKEN` or an API base.
 
-```bash
-API_CORS_ORIGINS=http://localhost:4321,http://127.0.0.1:4321
-```
+## Older snapshot export
 
-## Freshness (SSG + light client refresh)
-
-Pages fetch the API **at build time**. Weekend preference order:
-
-1. **Live API** — `GET /v1/predictions/upcoming` when reachable and non-empty
-2. **Committed snapshot** — `src/data/upcoming-snapshot.json` (real publish export; not sample)
-3. **Labelled sample** — `src/lib/sample.ts` only when both of the above are empty/missing
-
-Past peeks still fall back to sample settled rows when the store has no settled weeks.
-
-To keep `dist/` off the sample weekend slate when the API is not running at build (Cursor publish-app, static host):
-
-1. After `python -m src.jobs.precompute` (or `publish`), run:
-   ```bash
-   python scripts/export_upcoming_snapshot.py
-   ```
-   Commit the updated `web/src/data/upcoming-snapshot.json`.
-2. **Client refresh** — Weekend (`LiveWeekend`), Past peeks (`LivePastPeeks`), and Method peeks (`MethodPeeks`) re-fetch `PUBLIC_PREDICTIONS_API_BASE` after hydrate when a live API exists. CORS must allow the site origin.
-3. **Rebuild on publish** — Still rebuild (or re-deploy) after refreshing the snapshot / settle so:
-   - `/past/[iso_week]` static paths include new ISO weeks (`getStaticPaths`)
-   - First paint / no-JS viewers see real rows without waiting on the island
-4. **Ideal recipe with live API** — API up → export snapshot (optional but durable) → `cd web && npm run build` with `PUBLIC_PREDICTIONS_API_BASE` → deploy `dist/` → keep API reachable for client refresh when you have one.
-
-From the repo root, `python scripts/check_snapshot_freshness.py` reads `web/src/data/upcoming-snapshot.json` and exits 2 when every kickoff is already in the past. The check uses that file only. After `python -m src.jobs.settle` on a machine that holds the ledger, `python scripts/export_scorecard_snapshot.py` writes `web/src/data/scorecard-snapshot.json`. Past pages still read the live API, then the labelled sample. Cadence and the Actions secret name: [`docs/OPS_CADENCE.md`](../docs/OPS_CADENCE.md).
+`src/data/upcoming-snapshot.json` is the 17 Nov export kept for the freshness check. The pages above do not read it. Cadence: [`docs/OPS_CADENCE.md`](../docs/OPS_CADENCE.md).
 
 ## Run locally
 
 ```bash
-# Terminal A — API (repo root, venv active)
-uvicorn src.api.app:app --reload
-
-# Terminal B — site
 cd web
 npm install
 npm run dev
 ```
 
-Open http://localhost:4321. If the API is down or the slate is empty, pages fall back to a labelled sample slate (`src/lib/sample.ts` + `sample-settled.json`).
-
-### Empty store → live API sample
-
-From the **repo root** (Python deps installed):
-
-```bash
-python scripts/seed_sample_predictions.py
-uvicorn src.api.app:app --reload
-```
-
-Then `cd web && npm run dev`. Peeks use every settled week from the API; strips use `/v1/predictions/upcoming`.
+Open http://localhost:4321. The pages show the committed ledger. They do not fall back to sample rows unless `PUBLIC_SHOW_SAMPLE=1`.
 
 ```bash
 npm run build    # static export → dist/
@@ -81,7 +47,7 @@ npm run preview
 npm run check:metrics
 ```
 
-`check:metrics` imports `src/lib/metrics.ts` directly (no duplicated formulae).
+`check:metrics` checks the shared metric maths, the slate rules, and the ledger pages.
 
 ## Ownership
 

@@ -1,12 +1,9 @@
 "use client";
 
 /**
- * Version C counted peek metric — Motion scroll count-up.
- * Ease-out ~0.9s once in view; prefers-reduced-motion → final value immediately.
+ * Peek metric. The first paint is the real figure, so a static page
+ * and a reader with scripts off do not see a zero.
  */
-
-import { animate, useInView, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
 
 type Props = {
   value: number | null;
@@ -15,30 +12,7 @@ type Props = {
 };
 
 export default function CountedStat({ value, label, decimals = 0 }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.6 });
-  const reduceMotion = useReducedMotion();
-  const [display, setDisplay] = useState(() =>
-    value == null || reduceMotion ? value : 0,
-  );
-
-  useEffect(() => {
-    if (!inView) return;
-    if (value == null) {
-      setDisplay(null);
-      return;
-    }
-    if (reduceMotion) {
-      setDisplay(value);
-      return;
-    }
-    const controls = animate(0, value, {
-      duration: 0.9,
-      ease: "easeOut",
-      onUpdate: (v) => setDisplay(v),
-    });
-    return () => controls.stop();
-  }, [inView, reduceMotion, value]);
+  const display = value;
 
   const formatted =
     display == null
@@ -48,7 +22,7 @@ export default function CountedStat({ value, label, decimals = 0 }: Props) {
         : String(Math.round(display));
 
   return (
-    <div className="stat" ref={ref}>
+    <div className="stat">
       <strong className="nums">{formatted}</strong>
       <span>{label}</span>
       <style>{`
@@ -64,7 +38,7 @@ export default function CountedStat({ value, label, decimals = 0 }: Props) {
         .stat span {
           display: block;
           margin-top: 4px;
-          font-size: 0.72rem;
+          font-size: 0.92rem;
           color: var(--ink-soft);
         }
       `}</style>

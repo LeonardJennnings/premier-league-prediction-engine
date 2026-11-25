@@ -1,60 +1,70 @@
 ---
 /**
- * Weekend slate.
- * Preference: live API rows still to kick off → committed snapshot rows still
- * to kick off → labelled sample. A real snapshot that has fully kicked off
- * stays empty rather than swapping in sample fixtures.
- * LiveWeekend refreshes from the API after hydrate when reachable.
+ * This weekend, from the committed ledger. No API and no sample rows.
+ * Sample fixtures appear only when PUBLIC_SHOW_SAMPLE is exactly "1".
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
-import LiveWeekend from "../components/LiveWeekend";
-import { fetchUpcoming, getApiBase } from "../lib/api";
+import MatchRow from "../components/MatchRow.astro";
+import upcomingFile from "../data/ledger-upcoming.json";
 import { SAMPLE_UPCOMING } from "../lib/sample";
-import { chooseWeekendSlate } from "../lib/slate";
-import { UPCOMING_SNAPSHOT, hasUpcomingSnapshot } from "../lib/snapshot";
+import {
+  asPrediction,
+  gradeMatch,
+  sampleAllowed,
+  visibleUpcoming,
+  type LedgerFile,
+} from "../lib/ledger";
 
-const apiBase = getApiBase();
-const result = await fetchUpcoming();
-const slate = chooseWeekendSlate({
-  nowMs: Date.now(),
-  apiBase,
-  live: result.ok
-    ? {
-        ok: true,
-        modelVersion: result.data.model_version,
-        matches: result.data.matches,
-      }
-    : { ok: false, status: result.status, detail: result.detail },
-  snapshot: hasUpcomingSnapshot()
-    ? {
-        modelVersion: UPCOMING_SNAPSHOT.model_version,
-        matches: UPCOMING_SNAPSHOT.matches,
-      }
-    : null,
-  sampleMatches: SAMPLE_UPCOMING,
-});
+const showSample = sampleAllowed(import.meta.env.PUBLIC_SHOW_SAMPLE);
+const days = visibleUpcoming(upcomingFile as LedgerFile, Date.now());
+const usingSample = showSample && days.length === 0;
 ---
 
 <BaseLayout title="This weekend — Premier League Prediction Engine" active="weekend">
   <p class="lead">
-    Home, draw, and away probabilities for Premier League matches still to kick off, with the book beside the model when a line exists.
-    <span class="sub">Numbers are stored before kickoff. Misses stay on the past scorecard.</span>
+    Most likely score, most likely result, and expected goals for matches still to kick off. The model is the headline. The book sits beside it when a line exists.
+    <span class="sub">The favourite score and the favourite result can disagree. These numbers were stored before kickoff.</span>
   </p>
 
-  <section class="slate" aria-labelledby="weekend-heading">
-    <h2 class="section" id="weekend-heading">This weekend</h2>
-    <LiveWeekend
-      client:load
-      apiBase={apiBase}
-      initialMatches={slate.matches}
-      initialModelVersion={slate.modelVersion}
-      initialNotice={slate.notice}
-    />
-  </section>
+  {
+    usingSample && (
+      <p class="notice" role="status">
+        <strong>Note.</strong> Sample fixtures, shown only because PUBLIC_SHOW_SAMPLE is set. This is not the ledger.
+      </p>
+    )
+  }
+
+  {
+    usingSample
+      ? (
+          <section class="slate" aria-labelledby="weekend-heading">
+            <h2 class="section" id="weekend-heading">Sample</h2>
+            {SAMPLE_UPCOMING.map((match) => (
+              <MatchRow match={match} />
+            ))}
+          </section>
+        )
+      : days.length === 0
+        ? <p class="empty">No matches still to kick off.</p>
+        : days.map((day) => (
+            <section class="slate" aria-labelledby={`md-${day.matchday}`}>
+              <h2 class="section" id={`md-${day.matchday}`}>
+                Matchday {day.matchday}
+              </h2>
+              {day.matches.map((match) => (
+                <MatchRow match={asPrediction(match)} grade={gradeMatch(match)} />
+              ))}
+            </section>
+          ))
+  }
 </BaseLayout>
 
 <style>
   .slate {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
+  }
+  .empty {
+    font-size: 1.02rem;
+    color: var(--ink-soft);
   }
 </style>

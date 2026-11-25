@@ -1,0 +1,62 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import MatchRow from "../../components/MatchRow.astro";
+import settledFile from "../../data/ledger-settled.json";
+import {
+  asPrediction,
+  gradeMatch,
+  type LedgerFile,
+} from "../../lib/ledger";
+
+export function getStaticPaths() {
+  const settled = settledFile as LedgerFile;
+  return settled.matchdays
+    .filter((day) => day.matchday != null)
+    .map((day) => ({
+      params: { matchday: String(day.matchday) },
+      props: { day },
+    }));
+}
+
+const { day } = Astro.props;
+const matchday = Astro.params.matchday;
+
+function statusLabel(status: string): string {
+  if (status === "settled") return "Settled";
+  if (status === "postponed") return "Postponed";
+  if (status === "cancelled") return "Void";
+  if (status === "pending") return "Pending";
+  return status;
+}
+---
+
+<BaseLayout
+  title={`Matchday ${matchday} — Past scorecard`}
+  description={`Settled matches for matchday ${matchday}.`}
+  active="past"
+>
+  <p class="lead">
+    Matchday {matchday}, predicted against actual.
+    <span class="sub">{day.matches.length} matches. A Monday game stays with this round.</span>
+  </p>
+
+  <p class="back"><a href="/past">All matchdays</a></p>
+
+  {
+    day.matches.map((match) => (
+      <MatchRow
+        match={asPrediction(match)}
+        grade={gradeMatch(match)}
+        settled={match.status === "settled"}
+        statusLabel={statusLabel(match.status)}
+      />
+    ))
+  }
+</BaseLayout>
+
+<style>
+  .back {
+    margin: 0 0 16px;
+    font-size: 1.02rem;
+  }
+</style>

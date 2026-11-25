@@ -32,6 +32,14 @@ function ProbabilityStrip({ kind, home, draw, away }: StripProps) {
     ? `${label} probabilities unavailable`
     : `${label} ${widths.home} home, ${widths.draw} draw, ${widths.away} away`;
 
+  if (missing && kind === "book") {
+    return (
+      <div className="strip-row">
+        <p className="no-book">No book line yet</p>
+      </div>
+    );
+  }
+
   return (
     <div className="strip-row">
       <span className={`strip-label${kind === "model" ? " model" : ""}`}>
@@ -109,6 +117,7 @@ export default function LiveWeekend({
   useEffect(() => {
     let cancelled = false;
     const base = apiBase.replace(/\/$/, "");
+    if (!base) return;
 
     async function refresh() {
       try {

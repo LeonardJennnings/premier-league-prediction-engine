@@ -1,163 +1,202 @@
 ---
 /**
- * Past scorecard index — immutable weeks from Epic 4.
- * Version C peeks: counted proper scores + hit/miss waffle + calibration / buckets.
+ * Past scorecard from the committed ledger, grouped by matchday.
  */
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MatchRow from "../components/MatchRow.astro";
-import LivePastPeeks from "../components/LivePastPeeks";
-import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
-import { SAMPLE_SETTLED } from "../lib/sample";
-import type { MatchPrediction } from "../lib/types";
+import settledFile from "../data/ledger-settled.json";
+import scorecardFile from "../data/ledger-scorecard.json";
+import { pctLabel } from "../lib/format";
+import {
+  asPrediction,
+  bothTeamsSummary,
+  exactScoreSummary,
+  flattenMatches,
+  formatNat,
+  gradeMatch,
+  overUnderSummary,
+  resultHitSummary,
+  runningBookGap,
+  type LedgerFile,
+  type ScorecardFile,
+} from "../lib/ledger";
 
-const apiBase = getApiBase();
-const weeksResult = await fetchWeeks();
+const settled = settledFile as LedgerFile;
+const card = scorecardFile as ScorecardFile;
+const matches = flattenMatches(settled.matchdays);
+const exact = exactScoreSummary(matches);
+const results = resultHitSummary(matches);
+const totals = overUnderSummary(matches);
+const both = bothTeamsSummary(matches);
+const running = runningBookGap(matches);
+const range = card.book_comparison.range_95;
 
-let notice: string | null = null;
-let modelVersion = "sample-local";
-let weeks: { iso_week: string; match_count: number }[] = [];
-let detailMatches: MatchPrediction[] = [];
-let peekMatches: MatchPrediction[] = [];
-let selectedWeek: string | null = null;
-let usingSamplePeeks = false;
-
-if (!weeksResult.ok) {
-  notice =
-    weeksResult.status === 0
-      ? `API unreachable at ${apiBase}. Showing sample peeks.`
-      : `API ${weeksResult.status}: ${weeksResult.detail}. Showing sample peeks.`;
-  detailMatches = SAMPLE_SETTLED.slice(0, 4);
-  peekMatches = SAMPLE_SETTLED;
-  selectedWeek = "sample";
-  usingSamplePeeks = true;
-} else {
-  modelVersion = weeksResult.data.model_version;
-  weeks = weeksResult.data.weeks;
-  if (weeks.length === 0) {
-    notice = "No settled weeks yet. Showing sample peeks.";
-    detailMatches = SAMPLE_SETTLED.slice(0, 4);
-    peekMatches = SAMPLE_SETTLED;
-    selectedWeek = "sample";
-    usingSamplePeeks = true;
-  } else {
-    selectedWeek = weeks[0].iso_week;
-    const weekBatches = await Promise.all(
-      weeks.map((w) => fetchWeek(w.iso_week)),
-    );
-    const allSettled: MatchPrediction[] = [];
-    for (const wr of weekBatches) {
-      if (wr.ok) allSettled.push(...wr.data.matches);
-    }
-    peekMatches = allSettled;
-    const latest = weekBatches[0];
-    if (latest && latest.ok) {
-      detailMatches = latest.data.matches;
-    } else {
-      notice = `Could not load ${selectedWeek}: ${latest && !latest.ok ? latest.detail : "unknown error"}`;
-    }
-  }
+function statusLabel(status: string): string {
+  if (status === "settled") return "Settled";
+  if (status === "postponed") return "Postponed";
+  if (status === "cancelled") return "Void";
+  if (status === "pending") return "Pending";
+  return status;
 }
-
 ---
 
 <BaseLayout
   title="Past scorecard — Premier League Prediction Engine"
-  description="Settled Premier League weekends — misses stay visible."
+  description="Settled Premier League matchdays, predicted against actual."
   active="past"
 >
   <p class="lead">
-    Settled weekends, as they were published.
-    <span class="sub">Misses stay visible.</span>
+    Settled matches, predicted against actual.
+    <span class="sub">{card.note}</span>
   </p>
 
-  {notice && (
-    <p class="notice" role="status">
-      <strong>Note.</strong> {notice}
-    </p>
-  )}
+  <section aria-labelledby="counts-heading">
+    <h2 class="section" id="counts-heading">Counts</h2>
+    <ul class="tiles">
+      <li><span class="num nums">{card.counts.settled}</span> settled</li>
+      <li><span class="num nums">{card.counts.pending}</span> pending</li>
+      <li><span class="num nums">{card.counts.postponed}</span> postponed</li>
+      <li><span class="num nums">{card.counts.void}</span> void</li>
+    </ul>
+  </section>
 
-  <section aria-labelledby="weeks-heading">
-    <h2 class="section" id="weeks-heading">Settled weeks</h2>
-    {
-      weeks.length > 0 ? (
-        <ul class="week-list">
-          {weeks.map((w) => (
-            <li>
-              <a href={`/past/${w.iso_week}`}>
-                {w.iso_week}
-                <span class="nums"> — {w.match_count} matches</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p class="empty">No ISO weeks from the API yet.</p>
-      )
-    }
+  <section aria-labelledby="scores-heading">
+    <h2 class="section" id="scores-heading">Scorecard</h2>
+    <p class="explain">
+      Log loss is lower when more probability sat on the outcome that happened. Every figure below names how many matches it uses. Postponed and void matches stay in the list and out of these averages.
+    </p>
+    <ul class="tiles">
+      <li>
+        <span class="num nums">{formatNat(card.home_draw_away.model_log_loss)}</span>
+        home / draw / away log loss, {card.home_draw_away.match_count} matches
+      </li>
+      <li>
+        <span class="num nums">{formatNat(card.book_comparison.gap_model_minus_closing)}</span>
+        model minus closing book, {card.book_comparison.match_count} matches
+        <span class="detail">
+          Model {formatNat(card.book_comparison.model_log_loss)}, closing book {formatNat(card.book_comparison.closing_book_log_loss)}.
+          {range && range.length === 2
+            ? ` Range ${formatNat(range[0])} to ${formatNat(range[1])}.`
+            : " No range until there are two matches."}
+          {" "}Opening prices are not on this scorecard yet. League averages are not on this scorecard yet.
+        </span>
+      </li>
+      <li>
+        <span class="num nums">{formatNat(totals.model_log_loss)}</span>
+        over / under 2.5 log loss, {totals.match_count} matches
+        <span class="detail">
+          Closing book {formatNat(totals.closing_book_log_loss)} on the same {totals.closing_book_match_count} matches.
+          Opening prices and league averages are not on this scorecard yet.
+        </span>
+      </li>
+      <li>
+        <span class="num nums">{formatNat(both.model_log_loss)}</span>
+        both teams to score, model only, {both.match_count} matches
+      </li>
+      <li>
+        Scoreline log loss, 0 matches. These rows have no stored score table. The book's rebuilt table is not here, and league score frequencies are not here.
+      </li>
+      <li>
+        <span class="num nums">{exact.hits}</span>
+        exact-score hits, {exact.match_count} matches
+        <span class="detail">
+          Always 1-1 would have hit {exact.always_1_1_hits} of the same {exact.match_count}.
+          Average probability printed: {exact.mean_printed_probability == null ? "not available" : pctLabel(exact.mean_printed_probability)}.
+          {exact.match_count === 0 && " Matchday 11 has no stored predicted score, so it is not in this count."}
+        </span>
+      </li>
+      <li>
+        <span class="num nums">{results.hits}</span>
+        correct result, {results.match_count} matches
+        <span class="detail">
+          Average probability of that top result: {results.mean_top_probability == null ? "not available" : pctLabel(results.mean_top_probability)}.
+        </span>
+      </li>
+      <li>
+        <span class="num nums">{formatNat(card.goal_error.mean_absolute_error)}</span>
+        goal error, {card.goal_error.match_count} matches
+        {card.goal_error.match_count === 0 && (
+          <span class="detail">Expected goals were not stored on these rows.</span>
+        )}
+      </li>
+      <li>
+        Running gap to the closing book, never restarted
+        <span class="detail">
+          {running.length === 0
+            ? "No settled match has a closing price yet."
+            : running
+                .map(
+                  (point) =>
+                    `After matchday ${point.matchday}: ${formatNat(point.gap)} over ${point.match_count} matches.`,
+                )
+                .join(" ")}
+        </span>
+      </li>
+    </ul>
   </section>
 
   {
-    selectedWeek && (
-      <section class="slate" aria-labelledby="detail-heading">
-        <h2 class="section" id="detail-heading">
-          {selectedWeek === "sample" ? "Sample week" : `Latest — ${selectedWeek}`}
+    settled.matchdays.map((day) => (
+      <section class="slate" aria-labelledby={`md-${day.matchday}`}>
+        <h2 class="section" id={`md-${day.matchday}`}>
+          <a href={`/past/${day.matchday}`}>Matchday {day.matchday}</a>
+          <span class="count"> — {day.matches.length} matches</span>
         </h2>
-        <p class="meta-line nums">
-          Model <code>{modelVersion}</code>
-        </p>
-        {detailMatches.map((m) => (
-          <MatchRow match={m} settled />
+        {day.matches.map((match) => (
+          <MatchRow
+            match={asPrediction(match)}
+            grade={gradeMatch(match)}
+            settled={match.status === "settled"}
+            statusLabel={statusLabel(match.status)}
+          />
         ))}
       </section>
-    )
+    ))
   }
-
-  <LivePastPeeks
-    client:load
-    apiBase={apiBase}
-    initialPeekMatches={peekMatches}
-    usingSamplePeeks={usingSamplePeeks}
-  />
 </BaseLayout>
 
 <style>
-  .week-list {
+  .tiles {
     list-style: none;
     margin: 0 0 28px;
     padding: 0;
+    display: grid;
+    gap: 12px;
   }
-  .week-list li {
+  .tiles li {
     border-top: 1px solid var(--line-soft);
-    padding: 10px 0;
+    padding-top: 10px;
+    font-size: 1.02rem;
   }
-  .week-list li:last-child {
-    border-bottom: 1px solid var(--line-soft);
-  }
-  .week-list a {
+  .num {
     display: block;
-    font-weight: 600;
-    border-bottom: none;
-    min-height: 44px;
-    line-height: 44px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
-  .week-list span {
-    font-weight: 400;
+  .detail {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.92rem;
     color: var(--ink-soft);
   }
-  .empty {
-    font-size: 0.88rem;
-    color: var(--ink-soft);
-  }
-  .meta-line {
-    margin: -6px 0 12px;
-    font-size: 0.72rem;
-    color: var(--ink-soft);
-  }
-  .meta-line code {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
+  .explain {
+    margin: -6px 0 14px;
+    font-size: 0.92rem;
+    color: var(--ink);
+    max-width: 40em;
   }
   .slate {
     margin-bottom: 28px;
+  }
+  .count {
+    font-weight: 400;
+    color: var(--ink-soft);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  h2.section a {
+    border-bottom: none;
+    color: inherit;
   }
 </style>

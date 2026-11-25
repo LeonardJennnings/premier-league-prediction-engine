@@ -32,6 +32,7 @@ export default function LivePastPeeks({
   useEffect(() => {
     let cancelled = false;
     const base = apiBase.replace(/\/$/, "");
+    if (!base) return;
 
     async function refresh() {
       try {
