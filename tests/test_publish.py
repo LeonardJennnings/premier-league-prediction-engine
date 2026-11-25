@@ -5,8 +5,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from src.eval.market_blend import published_blend_table
 from src.fixtures.books import BOOK_SOURCE, index_fixtures_csv
 from src.jobs.publish import main, publish_slate
+from src.ledger.export_site import build_site_files
+from src.ledger.lines import FORECAST_LINE_MARKET, MARKET_LINE_LABEL
 from src.ledger.log import LedgerRefused, read_jsonl
 from src.models.artefacts import published_model_version, save_artefact
 from src.models.dixon_coles import DixonColesModel, score_table
@@ -405,7 +408,7 @@ def test_publish_fills_books_from_fixture_csv(tmp_path, monkeypatch):
         now_utc=datetime(2026, 11, 16, tzinfo=timezone.utc),
         token="x",
     )
-    assert counts["inserted"] == 1
+    assert counts["inserted"] == 2
 
     public = published_model_version(version)
     conn = connect(db)
@@ -434,7 +437,139 @@ def test_publish_fills_books_from_fixture_csv(tmp_path, monkeypatch):
     books = read_jsonl(ledger / "book_lines.jsonl")
     assert len(books) == 1
     assert books[0]["kind"] == "opening"
+    assert books[0]["forecast_line"] == "model"
     assert books[0]["p_home"] == pytest.approx(row["book_p_home"])
+
+    predictions = read_jsonl(ledger / "predictions.jsonl")
+    assert [item["forecast_line"] for item in predictions] == ["model", FORECAST_LINE_MARKET]
+    blend = predictions[1]
+    table = published_blend_table(
+        model,
+        "Arsenal",
+        "Chelsea",
+        row["book_p_home"],
+        row["book_p_draw"],
+        row["book_p_away"],
+        row["book_p_over_25"],
+        0.25,
+    )
+    blend_markets = markets_from_score_table(table)
+    assert blend["p_home"] == pytest.approx(blend_markets["home"])
+    assert blend["p_draw"] == pytest.approx(blend_markets["draw"])
+    assert blend["p_away"] == pytest.approx(blend_markets["away"])
+    assert blend["p_home"] != pytest.approx(row["p_home"])
+    assert blend["rho"] == pytest.approx(0.0)
+    assert blend["blend_weight"] == pytest.approx(0.25)
+    assert blend["line_label"] == MARKET_LINE_LABEL
+    assert blend["model_version"] == f"{public}+market"
+    again = publish_slate(
+        version,
+        now_utc=datetime(2026, 11, 16, tzinfo=timezone.utc),
+        token="x",
+    )
+    assert again["inserted"] == 0
+    assert again["skipped_duplicate"] == 2
+
+
+def test_publish_omits_the_blend_when_the_over_price_is_missing(tmp_path, monkeypatch):
+    models_dir, _db, ledger = _patch_paths(monkeypatch, tmp_path)
+    version, _ = save_artefact(_model(), 1.4, {"xi": 0.0019}, models_dir)
+    monkeypatch.setattr(
+        "src.jobs.publish.lookup_book",
+        lambda *a, **k: {
+            "book_p_home": 0.45,
+            "book_p_draw": 0.28,
+            "book_p_away": 0.27,
+            "book_p_over_25": None,
+            "book_p_under_25": None,
+            "book_source": "test",
+        },
+    )
+    monkeypatch.setattr(
+        "src.jobs.publish.fetch_pl_matches",
+        lambda *a, **k: [
+            {
+                "match_id": 7,
+                "kickoff_utc": "2026-11-20T15:00:00Z",
+                "home_team": "Arsenal FC",
+                "away_team": "Chelsea FC",
+                "matchday": 12,
+                "status": "TIMED",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "src.jobs.publish.load_team_name_map",
+        lambda: {"Arsenal FC": "Arsenal", "Chelsea FC": "Chelsea"},
+    )
+    counts = publish_slate(
+        version,
+        now_utc=datetime(2026, 11, 16, tzinfo=timezone.utc),
+        token="x",
+    )
+    assert counts["inserted"] == 1
+    lines = read_jsonl(ledger / "predictions.jsonl")
+    assert [row["forecast_line"] for row in lines] == ["model"]
+
+
+def test_site_export_folds_the_blend_onto_the_model_card():
+    kickoff = "2026-11-20T15:00:00Z"
+    model = {
+        "match_id": 7,
+        "forecast_line": "model",
+        "matchday": 12,
+        "kickoff_utc": kickoff,
+        "home_team": "Arsenal",
+        "away_team": "Chelsea",
+        "model_version": "dc-grid",
+        "most_likely_score": {"home": 1, "away": 1, "probability": 0.1},
+        "next_scores": [],
+        "p_home": 0.4,
+        "p_draw": 0.3,
+        "p_away": 0.3,
+        "p_btts_yes": 0.5,
+        "p_btts_no": 0.5,
+        "p_over_25": 0.5,
+        "p_under_25": 0.5,
+        "totals": {},
+        "lambda_home": 1.2,
+        "lambda_away": 1.1,
+        "uses_league_average": False,
+        "league_average_teams": [],
+        "score_omitted_reason": None,
+    }
+    blend = {
+        **model,
+        "forecast_line": "model_plus_market",
+        "model_version": "dc-grid+market",
+        "p_home": 0.46,
+        "p_draw": 0.27,
+        "p_away": 0.27,
+        "blend_weight": 0.25,
+    }
+    settlement = {
+        "match_id": 7,
+        "forecast_line": "model",
+        "kind": "result",
+        "home_goals": 1,
+        "away_goals": 0,
+        "result": "H",
+        "kickoff_utc": kickoff,
+    }
+    documents = build_site_files(
+        [model, blend],
+        [settlement],
+        [],
+        now_utc=datetime(2026, 11, 21, tzinfo=timezone.utc),
+    )
+    assert documents["ledger-upcoming.json"]["matchdays"] == []
+    settled = documents["ledger-settled.json"]["matchdays"][0]["matches"]
+    assert len(settled) == 1
+    assert settled[0]["p_home"] == 0.4
+    assert settled[0]["model_plus_market"]["label"] == "model plus market"
+    assert settled[0]["model_plus_market"]["p_home"] == 0.46
+    assert settled[0]["model_plus_market"]["blend_weight"] == 0.25
+    assert documents["ledger-scorecard.json"]["counts"]["settled"] == 1
 
 
 def test_main_logs_publish_counts(monkeypatch, caplog):

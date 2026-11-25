@@ -1,7 +1,7 @@
 ---
 import type { MatchGrade } from "../lib/ledger";
 import type { MatchPrediction } from "../lib/types";
-import { formatKickoff, resultLabel, secondaryMarketsLine } from "../lib/format";
+import { formatKickoff, pctLabel, resultLabel, secondaryMarketsLine } from "../lib/format";
 import ProbabilityStrip from "./ProbabilityStrip.astro";
 
 interface Props {
@@ -65,6 +65,20 @@ const secondary = secondaryMarketsLine(match);
   </div>
 
   <p class="secondary nums">{secondary}</p>
+
+  {
+    match.model_plus_market && (
+      <p class="secondary">
+        Model plus market
+        <span class="nums">
+          {" "}
+          H {pctLabel(match.model_plus_market.p_home)} / D {pctLabel(match.model_plus_market.p_draw)} / A{" "}
+          {pctLabel(match.model_plus_market.p_away)}
+        </span>
+        . This line uses the price available before kickoff. The line above is the pure model.
+      </p>
+    )
+  }
 
   {
     (settled || statusLabel) && (

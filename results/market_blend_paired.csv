@@ -1,0 +1,6 @@
+comparison,model_a,model_b,mean_diff,ci_low,ci_high,n_matches,n_rounds,n_bootstrap,seed,note,mean_diff_exact
+setting_pure_minus_blend_scoreline,dixon_coles,model_plus_market,0.0233,0.0105,0.0364,940,94,4000,20261124,Setting seasons chose the weight. This gap is not a clean test.,0.02328680213102893
+later_book_minus_blend_scoreline,book_closing_table,model_plus_market,-0.0073,-0.0162,0.0018,490,49,4000,20261124,Positive means the blend has the lower scoreline log loss than the reconstructed closing table.,-0.007274178823561705
+later_pure_minus_blend_scoreline,dixon_coles,model_plus_market,0.0215,0.0059,0.0377,490,49,4000,20261124,Positive means the blend has the lower scoreline log loss than the pure model.,0.021474263220807945
+later_pure_minus_blend_result,dixon_coles,model_plus_market,0.0151,0.0039,0.0269,490,49,4000,20261124,Positive means the blend has the lower home/draw/away log loss than the pure model. Not the stop rule.,0.015141039432815454
+later_blend_minus_closing_result,model_plus_market,closing_price,0.0062,-0.0011,0.0133,490,49,4000,20261124,A positive difference means the blend has the higher home/draw/away log loss. The closing price is the competitor. This is not a claim about the bookmaker.,0.006174626275676172

@@ -81,12 +81,25 @@ def build_site_files(
 ) -> dict[str, dict]:
     """Return the three site documents. Bytes are a pure function of these inputs."""
     now = _as_utc(now_utc)
+    blends = {
+        int(row["match_id"]): row
+        for row in predictions
+        if str(row.get("forecast_line") or "") == "model_plus_market"
+    }
+    model_rows = [
+        row
+        for row in predictions
+        if str(row.get("forecast_line") or "model") == "model"
+    ]
     upcoming_rows: list[dict] = []
     listed_rows: list[dict] = []
-    for prediction in predictions:
+    for prediction in model_rows:
         state = resolve_match(prediction, settlements)
         kickoff = _parse_utc(state["kickoff_utc"])
         card = _card(prediction, state, book_lines, now=now)
+        blend = blends.get(int(prediction["match_id"]))
+        if blend is not None:
+            card["model_plus_market"] = _blend_view(blend)
         status = state["status"]
         if status in {"postponed", "cancelled"} or status == "settled" or kickoff <= now:
             listed_rows.append(card)
@@ -151,6 +164,22 @@ def _card(prediction: dict, state: dict, book_lines: list[dict], *, now: datetim
         "league_average_teams": prediction.get("league_average_teams"),
         "score_omitted_reason": prediction.get("score_omitted_reason"),
         "book": book,
+    }
+
+
+def _blend_view(prediction: dict) -> dict:
+    """The second line, labelled, sitting on the pure model's card."""
+    return {
+        "label": "model plus market",
+        "blend_weight": prediction.get("blend_weight"),
+        "p_home": prediction.get("p_home"),
+        "p_draw": prediction.get("p_draw"),
+        "p_away": prediction.get("p_away"),
+        "p_over_25": prediction.get("p_over_25"),
+        "p_under_25": prediction.get("p_under_25"),
+        "most_likely_score": prediction.get("most_likely_score"),
+        "lambda_home": prediction.get("lambda_home"),
+        "lambda_away": prediction.get("lambda_away"),
     }
 
 

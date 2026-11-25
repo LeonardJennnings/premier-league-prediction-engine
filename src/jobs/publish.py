@@ -9,16 +9,28 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
 
-from src.config import LEDGER_DIR, MODELS_DIR, PREDICTIONS_DB, PUBLISH_WINDOW_DAYS
+from src.config import (
+    LEDGER_DIR,
+    MARKET_BLEND_WEIGHT,
+    MODELS_DIR,
+    PREDICTIONS_DB,
+    PUBLISH_WINDOW_DAYS,
+)
 from src.fixtures.books import load_book_index, lookup_book
 from src.fixtures.client import fetch_pl_matches
 from src.fixtures.window import matches_in_publish_window
-from src.ledger.lines import FORECAST_LINE_MODEL, build_prediction_line
+from src.ledger.lines import (
+    FORECAST_LINE_MARKET,
+    FORECAST_LINE_MODEL,
+    MARKET_VERSION_SUFFIX,
+    build_prediction_line,
+)
 from src.ledger.log import append_book_lines, append_predictions
 from src.logging_setup import setup_logging
 from src.models.artefacts import (
@@ -50,7 +62,12 @@ def publish_slate(
     token: str | None = None,
     matches: list | None = None,
 ) -> dict:
-    """Load an artefact and append one ledger line per new in-window match.
+    """Load an artefact and append the model line for each new in-window match.
+
+    When the price available before kickoff has home, draw, away and over/under
+    2.5, a second line labelled model plus market is appended beside it. A
+    missing price leaves that match with the pure model only. The closing
+    price is not an input.
 
     An unmapped name aborts the batch before anything is written. A mapped
     club with no fitted history is published at league-average rates and
@@ -116,6 +133,20 @@ def publish_slate(
         sqlite_rows.append(_sqlite_row(line, quote))
         if quote:
             book_lines.append(_book_line(line, quote, captured_at=published_at))
+        blend = _market_line(
+            model,
+            fixture,
+            home,
+            away,
+            quote,
+            public_version=public_version,
+            artefact_version=version,
+            published_at=published_at,
+            as_of_date=as_of_date,
+        )
+        if blend is not None:
+            lines.append(blend)
+            sqlite_rows.append(_sqlite_row(blend, quote))
 
     # Ledger first. A started match raises here and the store is left untouched.
     written = append_predictions(lines, now_utc=now, path=LEDGER_DIR)
@@ -168,6 +199,9 @@ def _sqlite_row(line: dict, quote: dict | None) -> dict:
         "uses_league_average": line["uses_league_average"],
         "score_omitted_reason": line["score_omitted_reason"],
     }
+    if "blend_weight" in line:
+        detail["blend_weight"] = line["blend_weight"]
+        detail["line_label"] = line["line_label"]
     row = {
         "match_id": line["match_id"],
         "model_version": line["model_version"],
@@ -201,6 +235,62 @@ def _book_line(line: dict, quote: dict, *, captured_at: str) -> dict:
         "p_over_25": quote.get("book_p_over_25"),
         "p_under_25": quote.get("book_p_under_25"),
     }
+
+
+def _market_line(
+    model,
+    fixture: dict,
+    home: str,
+    away: str,
+    quote: dict | None,
+    *,
+    public_version: str,
+    artefact_version: str,
+    published_at: str,
+    as_of_date: str,
+) -> dict | None:
+    """Second line from the price available before kickoff. None if it is incomplete."""
+    if MARKET_BLEND_WEIGHT is None or not _quote_can_blend(quote):
+        return None
+    from src.eval.market_blend import published_blend_table
+
+    table = published_blend_table(
+        model,
+        home,
+        away,
+        quote["book_p_home"],
+        quote["book_p_draw"],
+        quote["book_p_away"],
+        quote["book_p_over_25"],
+        float(MARKET_BLEND_WEIGHT),
+    )
+    return build_prediction_line(
+        model,
+        fixture,
+        home,
+        away,
+        model_version=f"{public_version}{MARKET_VERSION_SUFFIX}",
+        artefact_version=artefact_version,
+        published_at=published_at,
+        as_of_date=as_of_date,
+        forecast_line=FORECAST_LINE_MARKET,
+        table=table,
+    )
+
+
+def _quote_can_blend(quote: dict | None) -> bool:
+    """True when the pre-kickoff quote has the four prices the blend needs."""
+    if not quote:
+        return False
+    for key in ("book_p_home", "book_p_draw", "book_p_away", "book_p_over_25"):
+        value = quote.get(key)
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(number) or number <= 0.0:
+            return False
+    return True
 
 
 def _book_fields(quote: dict | None) -> dict:
