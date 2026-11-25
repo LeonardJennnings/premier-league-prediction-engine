@@ -189,18 +189,18 @@ Season mode writes `results/eval_results.csv`. Walk-forward writes `results/walk
 
 **Research source of truth is gameweek walk-forward** (`python -m src.evaluate --mode walkforward`), not the fixed season gate below. Prefer `results/walkforward_summary.csv` (pooled proper scores) and [`docs/EVAL_PROTOCOL.md`](docs/EVAL_PROTOCOL.md) for research claims. The `2526` table is a regression smoke check only.
 
-Season-gate smoke check: train on seasons `2223`–`2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss / Brier is better.
+Season-gate smoke check: train on seasons `2223` to `2425` (1,140 matches), test on `2526` (380 matches with closing odds). Lower log loss and Brier is better. This table is one season, not the research comparison. Gaps with a match count and a 95% range are in `results/walkforward_paired.csv`.
 
 | Model | Log loss | Brier | Accuracy |
 |-------|----------|-------|----------|
 | Naive frequencies | 1.085 | 0.219 | 42.6% |
-| Poisson | 1.041 | 0.209 | 45.0% |
-| Dixon–Coles | 1.033 | 0.207 | 47.1% |
+| Poisson | 1.034 | 0.208 | 47.6% |
+| Dixon-Coles | 1.039 | 0.208 | 47.1% |
 | Elo | 1.042 | 0.208 | 46.6% |
 | Sklearn baseline | 1.016 | 0.204 | 49.5% |
 | Bookmaker implied | 1.013 | 0.203 | 49.7% |
 
-**Reading:** every model beats a naive “always use historical H/D/A rates” baseline. Dixon–Coles improves a little on independent Poisson; Elo sits in the same band as Poisson. The sklearn baseline lands very close to the bookmaker row. That is an honest engineering result — matching closing odds is hard, and a dramatic unexplained win would be more suspicious than useful. Full numbers live in `results/eval_results.csv`.
+**Reading:** the Poisson away rate uses the average number of away goals. An earlier version used the blended home-and-away average, which made the away rate too high. On this smoke check the corrected Poisson line and Dixon-Coles sit next to each other. The sklearn baseline lands very close to the bookmaker row. Matching closing odds is hard, and a dramatic unexplained win would be more suspicious than useful. Full numbers live in `results/eval_results.csv`. The walk-forward scoreline table is in `results/WALKFORWARD.md`.
 
 ## Dashboard
 

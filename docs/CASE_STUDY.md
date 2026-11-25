@@ -69,11 +69,11 @@ On season `2526` (380 test matches; 1,140 train matches from prior seasons):
 | Model | Log loss | Brier | Accuracy |
 |-------|----------|-------|----------|
 | Naive frequencies | 1.085 | 0.219 | 42.6% |
-| Poisson | 1.041 | 0.209 | 45.0% |
+| Poisson | 1.034 | 0.208 | 47.6% |
 | Sklearn baseline | 1.016 | 0.204 | 49.5% |
 | Bookmaker implied | 1.013 | 0.203 | 49.7% |
 
-Both models beat naive. Sklearn sits next to the bookmakers; Poisson improves on naive but trails the market slightly. Limitations: one league, simple features, no injuries/line-ups, and odds-based features mean the baseline is partly “learning the market,” not discovering independent edge.
+The Poisson away rate uses the average number of away goals. Sklearn sits next to the bookmaker row. Poisson is closer to the bookmaker row than the naive frequencies line is, and it is still behind that row on this one season. Limitations: one league, simple features, no injuries or line-ups, and odds-based features mean the sklearn baseline is partly learning the market. The research comparison, with a match count and a range, is the walk-forward paired table.
 
 ## ROI / time-saved framing
 
