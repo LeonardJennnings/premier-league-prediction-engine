@@ -10,7 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "check:metrics": "node --experimental-strip-types scripts/check-metrics.mjs && node --experimental-strip-types scripts/check-slate.mjs"
+    "check:metrics": "node --experimental-strip-types scripts/check-metrics.mjs && node --experimental-strip-types scripts/check-slate.mjs && node --experimental-strip-types scripts/check-ledger.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^7.1.9",

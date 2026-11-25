@@ -1,4 +1,5 @@
 ---
+import type { MatchGrade } from "../lib/ledger";
 import type { MatchPrediction } from "../lib/types";
 import { formatKickoff, resultLabel, secondaryMarketsLine } from "../lib/format";
 import ProbabilityStrip from "./ProbabilityStrip.astro";
@@ -6,9 +7,11 @@ import ProbabilityStrip from "./ProbabilityStrip.astro";
 interface Props {
   match: MatchPrediction;
   settled?: boolean;
+  grade?: MatchGrade | null;
+  statusLabel?: string | null;
 }
 
-const { match, settled = false } = Astro.props;
+const { match, settled = false, grade = null, statusLabel = null } = Astro.props;
 const secondary = secondaryMarketsLine(match);
 ---
 
@@ -17,6 +20,34 @@ const secondary = secondaryMarketsLine(match);
     <h3>{match.home_team} vs {match.away_team}</h3>
     <span class="kick nums">{formatKickoff(match.kickoff_utc)}</span>
   </div>
+
+  {
+    grade && (
+      <div class="forecast">
+        {grade.scoreText ? (
+          <p class="score">
+            Most likely score {grade.scoreText}
+            <span class="nums"> ({grade.scorePct})</span>
+          </p>
+        ) : (
+          <p class="score missing">No predicted score stored</p>
+        )}
+        <p class="result-line">
+          Most likely result {grade.resultName}
+          <span class="nums"> ({grade.resultPct})</span>
+        </p>
+        {grade.expectedGoals && (
+          <p class="xg">Expected goals {grade.expectedGoals}</p>
+        )}
+        {grade.disagree && (
+          <p class="disagree">
+            The favourite score and the favourite result are not the same outcome.
+          </p>
+        )}
+        {grade.omittedReason && <p class="xg">{grade.omittedReason}</p>}
+      </div>
+    )
+  }
 
   <div class="strips">
     <ProbabilityStrip
@@ -36,21 +67,22 @@ const secondary = secondaryMarketsLine(match);
   <p class="secondary nums">{secondary}</p>
 
   {
-    settled && (
+    (settled || statusLabel) && (
       <p class="settled">
-        <span class="stamp">Settled</span>
-        {
-          match.home_goals != null && match.away_goals != null ? (
-            <>
-              {" "}
-              {match.home_goals}–{match.away_goals}
-              {" / "}
-              {resultLabel(match.result)}
-            </>
-          ) : (
-            " Result pending fields"
-          )
-        }
+        <span class="stamp">{statusLabel ?? "Settled"}</span>
+        {grade?.actualText && (
+          <>
+            {" "}
+            Actual {grade.actualText}
+            {" / "}
+            {resultLabel(match.result)}
+          </>
+        )}
+        {grade?.exact === "hit" && " / Exact score hit"}
+        {grade?.exact === "miss" && " / Exact score miss"}
+        {grade?.exact === "not stored" && " / Exact score not stored"}
+        {grade?.resultCall === "hit" && " / Result hit"}
+        {grade?.resultCall === "miss" && " / Result miss"}
       </p>
     )
   }
@@ -82,9 +114,37 @@ const secondary = secondaryMarketsLine(match);
   }
 
   .kick {
-    font-size: 0.72rem;
+    font-size: 0.92rem;
     color: var(--ink-soft);
     flex-shrink: 0;
+  }
+
+  .forecast {
+    margin: 0 0 10px;
+  }
+
+  .score {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .score.missing {
+    font-size: 1.12rem;
+    font-weight: 600;
+  }
+
+  .result-line,
+  .xg,
+  .disagree {
+    margin: 4px 0 0;
+    font-size: 0.92rem;
+    color: var(--ink);
+  }
+
+  .disagree {
+    color: var(--ink-soft);
   }
 
   .strips {
@@ -94,19 +154,19 @@ const secondary = secondaryMarketsLine(match);
 
   .secondary {
     margin: 8px 0 0;
-    font-size: 0.75rem;
+    font-size: 0.92rem;
     color: var(--ink-soft);
   }
 
   .settled {
     margin: 8px 0 0;
-    font-size: 0.78rem;
+    font-size: 0.92rem;
     color: var(--ink);
   }
 
   .stamp {
     display: inline-block;
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;

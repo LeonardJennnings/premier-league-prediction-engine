@@ -7,31 +7,20 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import MethodPeeks from "../components/MethodPeeks";
 import MethodDisclosure from "../components/MethodDisclosure";
-import { fetchWeek, fetchWeeks, getApiBase } from "../lib/api";
+import settledFile from "../data/ledger-settled.json";
 import { SAMPLE_SETTLED } from "../lib/sample";
-import type { MatchPrediction } from "../lib/types";
+import {
+  asPrediction,
+  flattenMatches,
+  sampleAllowed,
+  type LedgerFile,
+} from "../lib/ledger";
 
-const apiBase = getApiBase();
-const weeksResult = await fetchWeeks();
-
-let peekMatches: MatchPrediction[] = [];
-let usingSample = false;
-
-if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
-  peekMatches = SAMPLE_SETTLED;
-  usingSample = true;
-} else {
-  const weekBatches = await Promise.all(
-    weeksResult.data.weeks.map((w) => fetchWeek(w.iso_week)),
-  );
-  for (const wr of weekBatches) {
-    if (wr.ok) peekMatches.push(...wr.data.matches);
-  }
-  if (peekMatches.length === 0) {
-    peekMatches = SAMPLE_SETTLED;
-    usingSample = true;
-  }
-}
+const settled = flattenMatches((settledFile as LedgerFile).matchdays).filter(
+  (match) => match.status === "settled",
+);
+const showSample = sampleAllowed(import.meta.env.PUBLIC_SHOW_SAMPLE) && settled.length === 0;
+const peekMatches = showSample ? SAMPLE_SETTLED : settled.map(asPrediction);
 ---
 
 <BaseLayout
@@ -46,9 +35,9 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
 
   <MethodPeeks
     client:load
-    apiBase={apiBase}
+    apiBase=""
     initialMatches={peekMatches}
-    usingSample={usingSample}
+    usingSample={showSample}
   />
 
   <section class="slide" aria-labelledby="s1">
@@ -98,7 +87,7 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
   <section class="slide" aria-labelledby="s6">
     <h2 class="section" id="s6">Model vs book</h2>
     <p>
-      Book percentages are de-vigged implied probabilities so columns share the same units.
+      Book percentages are de-vigged implied probabilities, so home, draw, and away are on the same scale.
       De-vig means removing the bookmaker margin so home / draw / away sum to 100% for fair comparison.
       Book O/U 2.5 shows beside model O2.5 when present; book BTTS stays omitted until a source exists.
     </p>
@@ -116,15 +105,15 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
 
   <section class="slide diagram" aria-labelledby="s8">
     <h2 class="section" id="s8">One diagram</h2>
-    <svg viewBox="0 0 480 80" role="img" aria-label="Data to publish flow">
+    <svg viewBox="0 0 560 84" role="img" aria-label="Data to publish flow">
       <text x="8" y="28" class="node">Data</text>
-      <path d="M48 24 H90" />
-      <text x="96" y="28" class="node">Goals model</text>
-      <path d="M188 24 H230" />
-      <text x="236" y="28" class="node">Grid → markets</text>
-      <path d="M348 24 H390" />
-      <text x="396" y="28" class="node">Publish once</text>
-      <text x="8" y="62" class="sub">API serves stored rows. Browser never fits the model.</text>
+      <path d="M58 24 H84" />
+      <text x="92" y="28" class="node">Goals model</text>
+      <path d="M210 24 H236" />
+      <text x="244" y="28" class="node">Grid → markets</text>
+      <path d="M390 24 H416" />
+      <text x="424" y="28" class="node">Publish once</text>
+      <text x="8" y="64" class="sub">Ledger in git. The browser never fits the model.</text>
     </svg>
   </section>
 
@@ -148,7 +137,7 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
   }
   .diagram svg {
     width: 100%;
-    max-width: 480px;
+    max-width: 560px;
     height: auto;
     display: block;
     color: var(--ink);
@@ -160,13 +149,13 @@ if (!weeksResult.ok || weeksResult.data.weeks.length === 0) {
   }
   .diagram .node {
     font-family: var(--font-sans);
-    font-size: 12px;
+    font-size: 15px;
     font-weight: 600;
     fill: var(--ink);
   }
   .diagram .sub {
     font-family: var(--font-sans);
-    font-size: 11px;
+    font-size: 14px;
     fill: var(--ink-soft);
   }
   :global(.method-peeks) {

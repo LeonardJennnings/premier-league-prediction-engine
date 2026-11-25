@@ -24,6 +24,11 @@ const aria = missing
 ---
 
 <div class="strip-row">
+  {
+    missing && kind === "book" ? (
+      <p class="no-book">No book line yet</p>
+    ) : (
+      <>
   <span class:list={["strip-label", { model: kind === "model" }]}>{label}</span>
   {
     missing ? (
@@ -49,6 +54,9 @@ const aria = missing
         : `H ${h} / D ${d} / A ${a}`
     }
   </span>
+      </>
+    )
+  }
 </div>
 
 <style>
@@ -89,7 +97,14 @@ const aria = missing
   }
 
   .empty-copy {
-    font-size: 0.68rem;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+  }
+
+  .no-book {
+    margin: 0;
+    grid-column: 1 / -1;
+    font-size: 0.92rem;
     color: var(--ink-soft);
   }
 
