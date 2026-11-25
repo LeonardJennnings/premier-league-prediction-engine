@@ -47,6 +47,13 @@ export type LedgerMatch = {
   lambda_away: number | null;
   score_omitted_reason: string | null;
   book: LedgerBook | null;
+  model_plus_market?: {
+    label: string;
+    blend_weight: number | null;
+    p_home: number;
+    p_draw: number;
+    p_away: number;
+  } | null;
 };
 
 export type MatchdayGroup<T> = {
@@ -242,6 +249,7 @@ export function asPrediction(match: LedgerMatch): MatchPrediction {
     published_at: "",
     as_of_date: "",
     model_version: match.model_version,
+    model_plus_market: match.model_plus_market ?? null,
     home_goals: match.home_goals,
     away_goals: match.away_goals,
     result: match.result,

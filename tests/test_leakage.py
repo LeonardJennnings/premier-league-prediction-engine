@@ -30,6 +30,7 @@ _TUNING_MODULES = (
     "src/eval/xi_tune.py",
     "src/eval/thin_prior.py",
     "src/eval/grid_calibration.py",
+    "src/eval/market_blend.py",
     "src/eval/calibration.py",
     "src/eval/blend.py",
     "src/eval/walkforward.py",
@@ -341,4 +342,16 @@ def test_slice_8_note_is_committed_before_that_run():
     assert "0.95" in text and "1.05" in text
     assert "-0.10" in text and "0.00" in text
     assert "0.005" in text
+    assert "beat the book" not in text.lower()
+
+
+def test_slice_9_note_is_committed_before_that_run():
+    note = ROOT / "docs" / "experiments" / "2026-11-25-model-plus-market.md"
+    text = note.read_text(encoding="utf-8")
+    assert "written before the run" in text
+    assert "Stop rule" in text
+    assert "live ledger is not a tuning set" in text
+    assert "closing price is not an input" in text.lower()
+    assert "0.00" in text and "0.05" in text and "1.00" in text
+    assert "0.10" in text
     assert "beat the book" not in text.lower()

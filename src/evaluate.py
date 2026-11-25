@@ -217,13 +217,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Premier League evaluation")
     parser.add_argument(
         "--mode",
-        choices=("season", "walkforward", "xi_tune", "thin_prior", "grid_calibration"),
+        choices=(
+            "season",
+            "walkforward",
+            "xi_tune",
+            "thin_prior",
+            "grid_calibration",
+            "market_blend",
+        ),
         default="season",
         help=(
             "season = fixed 2526 gate; walkforward = gameweek walk-forward; "
             "xi_tune = nested ξ selection on older folds + holdout report; "
             "thin_prior = one strength for thin clubs, chosen on earlier seasons; "
-            "grid_calibration = one scale and one steady low-score correction"
+            "grid_calibration = one scale and one steady low-score correction; "
+            "market_blend = one weight on the price available before kickoff"
         ),
     )
     args = parser.parse_args()
@@ -258,6 +266,19 @@ if __name__ == "__main__":
             "Scale %.2f correction %.2f dropped=%s (%s)",
             result.chosen_scale,
             result.chosen_rho,
+            result.dropped,
+            result.reason,
+        )
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)
+    elif args.mode == "market_blend":
+        from src.eval.market_blend import run_market_blend, write_market_blend_artefacts
+
+        result = run_market_blend()
+        paths = write_market_blend_artefacts(result)
+        logger.info(
+            "Weight %.2f dropped=%s (%s)",
+            result.chosen_weight,
             result.dropped,
             result.reason,
         )

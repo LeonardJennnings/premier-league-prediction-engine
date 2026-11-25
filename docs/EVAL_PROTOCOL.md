@@ -141,6 +141,27 @@ Each scored round is fit only on earlier matches. The scale and the correction a
 
 The run on 25 Nov 2026 dropped the change. On the later seasons the previous line minus the new line was -0.0002 (95% range -0.0047 to 0.0046, 490 matches, 49 rounds). The published score table is unchanged.
 
+### Model plus market (one weight)
+
+```bash
+python -m src.evaluate --mode market_blend
+```
+
+| Piece | Rule |
+|---|---|
+| Question | Does one weight, mixing the model's goal rates with the rates from the price available before kickoff, earn a second score table? |
+| Candidates | Weights 0.00, 0.05, 0.10, 0.25, 0.50, 1.00 on the model's rates. Written down before the run |
+| Input | Opening home, draw, away and over/under 2.5 prices for that match. The closing price is not an input |
+| Setting era | Seasons `2223`, `2324`, `2425`. Chooses the weight. Not a clean test |
+| Later era | Seasons `2526`, `2627`. Scored after the weight is frozen. Not used to pick it |
+| Selection rule | Lowest scoreline log loss. Ties keep the smaller weight |
+| Stop rule | `docs/experiments/2026-11-25-model-plus-market.md`. Drop the second line if the weight is under 0.10 and the later-season scoreline gain against the reconstructed closing table is under 0.01 |
+| Artefacts | `results/MODEL_PLUS_MARKET.md`, `results/market_blend_candidates.csv`, `results/market_blend_paired.csv`, `results/market_blend_matches.csv` |
+
+Each scored round fits the model only on earlier matches. The pure model stays the published probability when the stop rule drops the second line. The live record is not a tuning set. The reconstructed closing table is the one already in the repo.
+
+The run on 25 Nov 2026 kept weight 0.25 as a second line labelled model plus market. On the later seasons the reconstructed closing table minus the blend was -0.0073 (95% range -0.0162 to 0.0018, 490 matches, 49 rounds). The range includes zero. The gap is under 0.01, so it is not a success. The pure model stays beside it. The second line is written only when the price available before kickoff has home, draw, away and over/under 2.5. The headline walk-forward tables were not regenerated.
+
 **Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
 
 **OOS Benter blend (DC + closing book).** For each gameweek fold, raw Dixon–Coles 1X2 probabilities on matches with closing odds are stored as out-of-sample predictions. A second-stage Benter blend \(c \propto \exp(\alpha \log f + \beta \log \pi)\) is fit on **prior folds only**, then applied to the current fold. The summary reports mean `blend_alpha`, `blend_beta`, and `blend_w_model = α/(α+β)`. Publish the weight even when \(w_{\text{model}} \approx 0\) (market dominates) — that is a valid scientific result, not a harness failure. The blend fuses against **closing** Bet365 for the “does the model add anything after a sharp prior?” question; opening remains a separate publish-time comparator and is not mixed into this line. Skipped until `BLEND_MIN_ROWS` (200) prior OOS pairs exist. Optional O/U blend uses the same nested protocol on grid-derived over vs `implied_over_25`.

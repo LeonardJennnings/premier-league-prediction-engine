@@ -24,6 +24,13 @@ export type MatchPrediction = {
   published_at: string;
   as_of_date: string;
   model_version: string;
+  model_plus_market?: {
+    label: string;
+    blend_weight: number | null;
+    p_home: number;
+    p_draw: number;
+    p_away: number;
+  } | null;
   home_goals: number | null;
   away_goals: number | null;
   result: string | null;

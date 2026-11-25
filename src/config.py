@@ -56,6 +56,17 @@ GRID_CALIBRATION_RHOS = (-0.10, -0.05, 0.0)
 GRID_CALIBRATION_MIN_GAIN = 0.005
 GRID_CALIBRATION_SETTING_SEASONS = ("2223", "2324", "2425")
 GRID_CALIBRATION_LATER_SEASONS = ("2526", "2627")
+# Model-plus-market blend. The 25 Nov 2026 stop kept this weight as a second
+# line. See results/MODEL_PLUS_MARKET.md. The pure model stays beside it.
+# None would publish the pure model only.
+MARKET_BLEND_WEIGHT = 0.25
+# Written down before the run. The weight is on the model's goal rates.
+# 0 is the opening-price rates alone. 1 is the model's rates alone.
+MARKET_BLEND_WEIGHTS = (0.0, 0.05, 0.10, 0.25, 0.50, 1.0)
+MARKET_BLEND_MIN_WEIGHT = 0.10
+MARKET_BLEND_MIN_GAIN = 0.01
+MARKET_BLEND_SETTING_SEASONS = ("2223", "2324", "2425")
+MARKET_BLEND_LATER_SEASONS = ("2526", "2627")
 # Nested ξ tune: select on older seasons, freeze, score recent holdout.
 # Half-lives ≈ ln(2)/ξ days: 1386, 693, 365, 277, 198, 139, 87, 58.
 XI_TUNE_CANDIDATES = (0.0005, 0.0010, 0.0019, 0.0025, 0.0035, 0.0050, 0.0080, 0.0120)

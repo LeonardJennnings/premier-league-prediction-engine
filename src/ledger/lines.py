@@ -6,6 +6,9 @@ from src.models.dixon_coles import DixonColesModel, score_table
 from src.models.markets import TOTAL_LINES, markets_from_score_table, ranked_scores
 
 FORECAST_LINE_MODEL = "model"
+FORECAST_LINE_MARKET = "model_plus_market"
+MARKET_LINE_LABEL = "model plus market"
+MARKET_VERSION_SUFFIX = "+market"
 
 
 def league_average_teams(model: DixonColesModel, home: str, away: str) -> list[str]:
@@ -28,9 +31,15 @@ def build_prediction_line(
     published_at: str,
     as_of_date: str,
     forecast_line: str = FORECAST_LINE_MODEL,
+    table: dict | None = None,
 ) -> dict:
-    """One public row. Home/draw/away are the plain sum of the stored table."""
-    table = score_table(model, home, away)
+    """One public row. Home/draw/away are the plain sum of one score table.
+
+    ``table`` is the pure model grid when omitted. The model-plus-market
+    line passes the blended grid so this row is not the pure model.
+    """
+    if table is None:
+        table = score_table(model, home, away)
     markets = markets_from_score_table(table)
     ranked = ranked_scores(table)
     if len(ranked) < 3:
@@ -43,7 +52,7 @@ def build_prediction_line(
         }
         for line in TOTAL_LINES
     }
-    return {
+    line = {
         "match_id": int(fixture["match_id"]),
         "matchday": fixture.get("matchday"),
         "kickoff_utc": fixture["kickoff_utc"],
@@ -77,3 +86,7 @@ def build_prediction_line(
         "uses_league_average": bool(flagged),
         "score_omitted_reason": None,
     }
+    if forecast_line == FORECAST_LINE_MARKET:
+        line["blend_weight"] = table["blend_weight"]
+        line["line_label"] = MARKET_LINE_LABEL
+    return line

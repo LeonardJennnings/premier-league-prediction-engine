@@ -43,3 +43,7 @@ A second forecast line is published beside the pure model, labelled model plus m
 ## Expected
 
 The review that prompted this note expected the blend to close most of a gap of about 0.10 on the scoreline, and expected whatever is left against the reconstructed closing table to be somewhere from 0.00 to 0.02, possibly zero. Those figures had no range. They are the motive, not a settled gap.
+
+## After the run
+
+The sections above were written before the run. They stay the rules. The paired gaps, the ranges, and the match counts are in `results/MODEL_PLUS_MARKET.md`.
