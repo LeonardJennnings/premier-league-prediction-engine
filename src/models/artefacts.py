@@ -17,11 +17,26 @@ _MODEL_JSON = "model.json"
 _META_JSON = "meta.json"
 
 
+# Public rows that sum the score table, with no separate 1X2 calibration.
+PUBLISHED_GRID_SUFFIX = "-grid"
+
+
 def build_model_version(as_of: pd.Timestamp, content_hash: str) -> str:
     """Return ``dc-YYYYMMDD-<8char>`` from the training cutoff and content hash."""
     ts = pd.Timestamp(as_of) if as_of is not None else pd.NaT
     date_part = "00000000" if pd.isna(ts) else ts.strftime("%Y%m%d")
     return f"dc-{date_part}-{content_hash[:8]}"
+
+
+def published_model_version(artefact_version: str) -> str:
+    """Name written on a ledger row whose markets are plain score-table sums.
+
+    The suffix is how a reader tells these rows from the 17 Nov publish, which
+    applied a home/draw/away calibration and did not store a score.
+    """
+    if artefact_version.endswith(PUBLISHED_GRID_SUFFIX):
+        return artefact_version
+    return f"{artefact_version}{PUBLISHED_GRID_SUFFIX}"
 
 
 def teams_in_model(model: DixonColesModel) -> set[str]:

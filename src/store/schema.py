@@ -53,8 +53,26 @@ CREATE TABLE IF NOT EXISTS predictions (
   away_goals INTEGER,
   result TEXT,
   settled_at TEXT,
+  -- Score table and the other fields copied onto the ledger line. Null on old rows.
+  detail_json TEXT,
   PRIMARY KEY (match_id, model_version)
 );
+"""
+
+# Probability and book columns are written once. Settlement may not change them.
+PROBABILITY_GUARD_SQL = """
+CREATE TRIGGER IF NOT EXISTS predictions_reject_probability_update
+BEFORE UPDATE OF
+  p_home, p_draw, p_away,
+  p_btts_yes, p_btts_no,
+  p_over_25, p_under_25,
+  book_p_home, book_p_draw, book_p_away,
+  book_p_over_25, book_p_under_25,
+  detail_json
+ON predictions
+BEGIN
+  SELECT RAISE(ABORT, 'probability columns are append-only');
+END;
 """
 
 
@@ -64,6 +82,10 @@ def init_db(path: Path | None = None) -> Path:
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(SCHEMA_SQL)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(predictions)")}
+        if "detail_json" not in columns:
+            conn.execute("ALTER TABLE predictions ADD COLUMN detail_json TEXT")
+        conn.executescript(PROBABILITY_GUARD_SQL)
         conn.commit()
     finally:
         conn.close()

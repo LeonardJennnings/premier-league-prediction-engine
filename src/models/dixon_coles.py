@@ -68,6 +68,54 @@ def scoreline_grid_from_rates(
     return grid / total
 
 
+def _poisson_pmf(rate: float, max_goals: int) -> np.ndarray:
+    goals = np.arange(0, max_goals + 1)
+    return np.exp(-rate) * np.power(rate, goals) / np.array(
+        [math.factorial(int(k)) for k in goals]
+    )
+
+
+def score_table_from_rates(
+    lam: float,
+    mu: float,
+    rho: float,
+    max_goals: int = 8,
+) -> dict:
+    """Score probabilities for 0..max_goals, plus one bucket for every other score.
+
+    The low-score correction touches only cells inside the grid. The ``other``
+    bucket is the independent-Poisson tail (any score with a side above
+    ``max_goals``), then the grid and that bucket are scaled so they sum to 1.
+    A result such as 9-0 is scored from ``other``, which stays positive for
+    ordinary goal rates.
+    """
+    if int(max_goals) < 0:
+        raise ValueError("max_goals must be at least 0")
+    if lam < 0 or mu < 0 or not np.isfinite(lam) or not np.isfinite(mu):
+        raise ValueError("rates must be finite and non-negative")
+    home_p = _poisson_pmf(float(lam), int(max_goals))
+    away_p = _poisson_pmf(float(mu), int(max_goals))
+    grid = np.outer(home_p, away_p)
+    # Tail before the low-score correction. That correction does not create
+    # scores outside the grid, so the tail stays in the other bucket.
+    other = max(0.0, 1.0 - float(home_p.sum() * away_p.sum()))
+    limit = min(2, int(max_goals) + 1)
+    for i in range(limit):
+        for j in range(limit):
+            grid[i, j] *= tau(i, j, float(lam), float(mu), float(rho))
+    total = float(grid.sum()) + other
+    if total <= 0 or not np.isfinite(total):
+        raise ValueError("non-positive score table; check rho/lambda/mu")
+    grid = grid / total
+    other = float(other / total)
+    size = int(max_goals) + 1
+    return {
+        "max_goals": int(max_goals),
+        "cells": [[float(grid[i, j]) for j in range(size)] for i in range(size)],
+        "other": other,
+    }
+
+
 def expected_goals(
     model: DixonColesModel,
     home_team: str,
@@ -110,6 +158,38 @@ def scoreline_grid(
             away_team,
         )
         return scoreline_grid_from_rates(lam, mu, 0.0, max_goals=max_goals)
+
+
+def score_table(
+    model: DixonColesModel,
+    home_team: str,
+    away_team: str,
+    max_goals: int | None = None,
+) -> dict:
+    """Stored score table for one fixture, including the tail bucket.
+
+    Teams missing from the fit use league-average attack and defence (1.0),
+    the same rates as ``expected_goals``. ``rho`` is the value actually used
+    after it is projected into the admissible interval.
+    """
+    if max_goals is None:
+        max_goals = DIXON_COLES_MAX_GOALS
+    lam, mu = expected_goals(model, home_team, away_team)
+    rho = _project_rho(model.rho, np.array([lam]), np.array([mu]))
+    try:
+        table = score_table_from_rates(lam, mu, rho, max_goals=max_goals)
+    except ValueError:
+        logger.warning(
+            "Non-positive score table for %s vs %s; using rho=0",
+            home_team,
+            away_team,
+        )
+        rho = 0.0
+        table = score_table_from_rates(lam, mu, rho, max_goals=max_goals)
+    table["lambda_home"] = float(lam)
+    table["lambda_away"] = float(mu)
+    table["rho"] = float(rho)
+    return table
 
 
 def predict_match(

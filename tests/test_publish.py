@@ -7,8 +7,10 @@ import pytest
 
 from src.fixtures.books import BOOK_SOURCE, index_fixtures_csv
 from src.jobs.publish import main, publish_slate
-from src.models.artefacts import save_artefact
-from src.models.dixon_coles import DixonColesModel
+from src.ledger.log import LedgerRefused, read_jsonl
+from src.models.artefacts import published_model_version, save_artefact
+from src.models.dixon_coles import DixonColesModel, score_table
+from src.models.markets import markets_from_score_table
 from src.models.predict import predict_matches
 from src.store.predictions import connect, get_prediction
 from src.store.schema import init_db
@@ -30,12 +32,14 @@ def _model(**overrides) -> DixonColesModel:
 def _patch_paths(monkeypatch, tmp_path):
     models_dir = tmp_path / "models"
     db = tmp_path / "db.sqlite"
+    ledger = tmp_path / "ledger"
     init_db(db)
     monkeypatch.setattr("src.jobs.publish.MODELS_DIR", models_dir)
     monkeypatch.setattr("src.jobs.publish.PREDICTIONS_DB", db)
+    monkeypatch.setattr("src.jobs.publish.LEDGER_DIR", ledger)
     # Keep publish tests off the live fixtures.csv. Book tests override this.
     monkeypatch.setattr("src.jobs.publish.load_book_index", lambda: {})
-    return models_dir, db
+    return models_dir, db, ledger
 
 
 def _prediction_count(db) -> int:
@@ -47,7 +51,7 @@ def _prediction_count(db) -> int:
 
 
 def test_publish_aborts_on_unmapped_team(tmp_path, monkeypatch):
-    models_dir, db = _patch_paths(monkeypatch, tmp_path)
+    models_dir, db, ledger = _patch_paths(monkeypatch, tmp_path)
     model = DixonColesModel(
         attack={"Arsenal": 1.0, "Chelsea": 1.0},
         defence={"Arsenal": 1.0, "Chelsea": 1.0},
@@ -83,10 +87,11 @@ def test_publish_aborts_on_unmapped_team(tmp_path, monkeypatch):
             token="x",
         )
     assert _prediction_count(db) == 0
+    assert read_jsonl(ledger / "predictions.jsonl") == []
 
 
 def test_publish_inserts_and_refuses_duplicate(tmp_path, monkeypatch):
-    models_dir, db = _patch_paths(monkeypatch, tmp_path)
+    models_dir, db, ledger = _patch_paths(monkeypatch, tmp_path)
     model = _model()
     version, _ = save_artefact(model, 1.4, {"xi": 0.0019}, models_dir)
     fixtures = [
@@ -127,9 +132,10 @@ def test_publish_inserts_and_refuses_duplicate(tmp_path, monkeypatch):
     assert second["skipped_duplicate"] == 1
     assert _prediction_count(db) == 1
 
+    public = published_model_version(version)
     conn = connect(db)
     try:
-        row = get_prediction(conn, 7, version)
+        row = get_prediction(conn, 7, public)
     finally:
         conn.close()
     assert row is not None
@@ -143,21 +149,25 @@ def test_publish_inserts_and_refuses_duplicate(tmp_path, monkeypatch):
     assert row["book_p_home"] is None
     assert row["book_source"] is None
 
+    table_markets = markets_from_score_table(score_table(model, "Arsenal", "Chelsea"))
+    assert row["p_home"] == pytest.approx(table_markets["home"])
+    assert row["p_draw"] == pytest.approx(table_markets["draw"])
+    assert row["p_away"] == pytest.approx(table_markets["away"])
+    assert row["p_btts_yes"] == pytest.approx(table_markets["btts_yes"])
+    assert row["p_over_25"] == pytest.approx(table_markets["over_25"])
     frame = pd.DataFrame(
         [{"match_id": 7, "home_team": "Arsenal", "away_team": "Chelsea"}]
     )
     scaled = predict_matches(model, frame, temperature=1.4).iloc[0]
-    raw = predict_matches(model, frame, temperature=1.0).iloc[0]
-    assert row["p_home"] == pytest.approx(float(scaled["p_home"]))
-    assert row["p_draw"] == pytest.approx(float(scaled["p_draw"]))
-    assert row["p_away"] == pytest.approx(float(scaled["p_away"]))
-    assert row["p_btts_yes"] == pytest.approx(float(scaled["p_btts_yes"]))
-    assert row["p_over_25"] == pytest.approx(float(scaled["p_over_25"]))
-    assert row["p_home"] != pytest.approx(float(raw["p_home"]))
+    assert row["p_home"] != pytest.approx(float(scaled["p_home"]))
+    lines = read_jsonl(ledger / "predictions.jsonl")
+    assert len(lines) == 1
+    assert lines[0]["model_version"] == public
+    assert lines[0]["score_omitted_reason"] is None
 
 
 def test_publish_aborts_before_insert_when_any_team_is_unmapped(tmp_path, monkeypatch):
-    models_dir, db = _patch_paths(monkeypatch, tmp_path)
+    models_dir, db, _ledger = _patch_paths(monkeypatch, tmp_path)
     version, _ = save_artefact(_model(), 1.0, {"xi": 0.0019}, models_dir)
     monkeypatch.setattr(
         "src.jobs.publish.fetch_pl_matches",
@@ -194,8 +204,8 @@ def test_publish_aborts_before_insert_when_any_team_is_unmapped(tmp_path, monkey
     assert _prediction_count(db) == 0
 
 
-def test_publish_aborts_when_team_missing_from_model(tmp_path, monkeypatch):
-    models_dir, db = _patch_paths(monkeypatch, tmp_path)
+def test_publish_flags_league_average_when_history_is_missing(tmp_path, monkeypatch):
+    models_dir, db, ledger = _patch_paths(monkeypatch, tmp_path)
     model = _model(
         attack={"Arsenal": 1.2, "Chelsea": 0.9, "Liverpool": 1.1},
         defence={"Arsenal": 0.8, "Liverpool": 1.0},
@@ -231,17 +241,25 @@ def test_publish_aborts_when_team_missing_from_model(tmp_path, monkeypatch):
         },
     )
 
-    with pytest.raises(KeyError, match="missing from model"):
-        publish_slate(
-            version,
-            now_utc=datetime(2026, 11, 16, tzinfo=timezone.utc),
-            token="x",
-        )
-    assert _prediction_count(db) == 0
+    counts = publish_slate(
+        version,
+        now_utc=datetime(2026, 11, 16, tzinfo=timezone.utc),
+        token="x",
+    )
+    assert counts["inserted"] == 2
+    assert _prediction_count(db) == 2
+    lines = {row["match_id"]: row for row in read_jsonl(ledger / "predictions.jsonl")}
+    assert lines[1]["uses_league_average"] is False
+    assert lines[1]["league_average_teams"] == []
+    assert lines[2]["uses_league_average"] is True
+    assert lines[2]["league_average_teams"] == ["Chelsea"]
+    # Chelsea has an attack rate and no defence rate, so only the away mean uses 1.0.
+    assert lines[2]["lambda_home"] == pytest.approx(0.9 * 0.8 * 1.3)
+    assert lines[2]["lambda_away"] == pytest.approx(1.2)
 
 
 def test_publish_requests_exclusive_date_to(tmp_path, monkeypatch):
-    models_dir, _db = _patch_paths(monkeypatch, tmp_path)
+    models_dir, _db, _ledger = _patch_paths(monkeypatch, tmp_path)
     version, _ = save_artefact(_model(), 1.0, {"xi": 0.0019}, models_dir)
     captured = {}
 
@@ -258,7 +276,7 @@ def test_publish_requests_exclusive_date_to(tmp_path, monkeypatch):
 
     assert captured == {
         "date_from": "2026-11-16",
-        "date_to": "2026-11-27",
+        "date_to": "2026-11-24",
         "token": "tok",
         "use_cache": False,
     }
@@ -288,7 +306,7 @@ def test_publish_refetches_same_window_after_cache_write(tmp_path, monkeypatch):
     the cache read, the second publish would reuse that file and miss the new
     match.
     """
-    models_dir, db = _patch_paths(monkeypatch, tmp_path)
+    models_dir, db, _ledger = _patch_paths(monkeypatch, tmp_path)
     version, _ = save_artefact(_model(), 1.0, {"xi": 0.0019}, models_dir)
     cache_dir = tmp_path / "fixtures"
     cache_dir.mkdir()
@@ -325,7 +343,7 @@ def test_publish_refetches_same_window_after_cache_write(tmp_path, monkeypatch):
     monkeypatch.setattr("src.fixtures.client.requests.get", fake_get)
 
     first = publish_slate(version, now_utc=now, token="secret-token")
-    cache_file = cache_dir / "PL_2026-11-16_2026-11-27.json"
+    cache_file = cache_dir / "PL_2026-11-16_2026-11-24.json"
     assert first["inserted"] == 1
     assert captured["calls"] == 1
     assert cache_file.is_file()
@@ -340,10 +358,11 @@ def test_publish_refetches_same_window_after_cache_write(tmp_path, monkeypatch):
         "skipped_duplicate": 1,
     }
     assert _prediction_count(db) == 2
+    public = published_model_version(version)
     conn = connect(db)
     try:
-        original = get_prediction(conn, 7, version)
-        added = get_prediction(conn, 8, version)
+        original = get_prediction(conn, 7, public)
+        added = get_prediction(conn, 8, public)
     finally:
         conn.close()
     assert original["status"] == "scheduled"
@@ -355,7 +374,7 @@ def test_publish_refetches_same_window_after_cache_write(tmp_path, monkeypatch):
 
 
 def test_publish_fills_books_from_fixture_csv(tmp_path, monkeypatch):
-    models_dir, db = _patch_paths(monkeypatch, tmp_path)
+    models_dir, db, ledger = _patch_paths(monkeypatch, tmp_path)
     model = _model()
     version, _ = save_artefact(model, 1.4, {"xi": 0.0019}, models_dir)
     csv_path = Path(__file__).parent / "fixtures" / "fdco_upcoming.csv"
@@ -388,9 +407,10 @@ def test_publish_fills_books_from_fixture_csv(tmp_path, monkeypatch):
     )
     assert counts["inserted"] == 1
 
+    public = published_model_version(version)
     conn = connect(db)
     try:
-        row = get_prediction(conn, 7, version)
+        row = get_prediction(conn, 7, public)
     finally:
         conn.close()
     raw_home, raw_draw, raw_away = 1 / 2.0, 1 / 3.4, 1 / 4.0
@@ -403,12 +423,18 @@ def test_publish_fills_books_from_fixture_csv(tmp_path, monkeypatch):
     assert row["book_p_over_25"] == pytest.approx(raw_over / ou_total)
     assert row["book_p_under_25"] == pytest.approx(raw_under / ou_total)
     assert row["book_source"] == BOOK_SOURCE
+    table_markets = markets_from_score_table(score_table(model, "Arsenal", "Chelsea"))
+    assert row["p_home"] == pytest.approx(table_markets["home"])
     frame = pd.DataFrame(
         [{"match_id": 7, "home_team": "Arsenal", "away_team": "Chelsea"}]
     )
     scaled = predict_matches(model, frame, temperature=1.4).iloc[0]
-    assert row["p_home"] == pytest.approx(float(scaled["p_home"]))
+    assert row["p_home"] != pytest.approx(float(scaled["p_home"]))
     assert row["p_home"] != pytest.approx(row["book_p_home"])
+    books = read_jsonl(ledger / "book_lines.jsonl")
+    assert len(books) == 1
+    assert books[0]["kind"] == "opening"
+    assert books[0]["p_home"] == pytest.approx(row["book_p_home"])
 
 
 def test_main_logs_publish_counts(monkeypatch, caplog):

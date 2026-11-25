@@ -78,11 +78,16 @@ def _insert_new(conn: sqlite3.Connection, row: dict) -> bool:
     ).fetchone()
     if existing is not None:
         return False
-    cols = ", ".join(INSERT_COLUMNS)
-    placeholders = ", ".join(f":{name}" for name in INSERT_COLUMNS)
+    columns = list(INSERT_COLUMNS)
+    payload = {name: row[name] for name in INSERT_COLUMNS}
+    if "detail_json" in row:
+        columns.append("detail_json")
+        payload["detail_json"] = row["detail_json"]
+    cols = ", ".join(columns)
+    placeholders = ", ".join(f":{name}" for name in columns)
     conn.execute(
         f"INSERT INTO predictions ({cols}) VALUES ({placeholders})",
-        {name: row[name] for name in INSERT_COLUMNS},
+        payload,
     )
     return True
 

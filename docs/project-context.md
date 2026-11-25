@@ -76,6 +76,16 @@ Detail and epics: [`prd.md`](prd.md).
 - Site: weekend page + past scorecard + how-it-works; affiliates off
 - Architecture: Python precompute → store → thin API → Next.js; Streamlit lab only
 
+## Decisions for the weekly ledger (25 Nov 2026)
+
+These settle the open choices in the next-phase plan.
+
+- The daily job is a GitHub Actions workflow, and the same command can be run on a cloud machine. The site stays a static build that reads the committed ledger. No host is chosen here.
+- The predicted score on the page is the single most likely score and its probability, shown with the most likely result and expected goals. Those two picks are allowed to disagree.
+- The headline forecast is the pure model. The book sits beside it.
+- New lines are written for fixtures kicking off within 7 days.
+- Published home, draw, and away from the `-grid` version are the plain sum of the stored score table. The older home/draw/away-only calibration is not applied to those rows.
+
 ## Explicitly later
 
 - Consumer brand and heavy go-to-market

@@ -46,6 +46,8 @@ FOOTBALL_DATA_ORG_TOKEN = os.getenv("FOOTBALL_DATA_ORG_TOKEN", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 PREDICTIONS_DB = DATA_PROCESSED / "predictions.sqlite"
+# Append-only text ledger. This is the public record. SQLite is a local copy.
+LEDGER_DIR = ROOT / "data" / "ledger"
 # Comma-separated browser origins for the read-only API (Astro web/ + optional Next).
 API_CORS_ORIGINS = [
     origin.strip()
@@ -61,7 +63,8 @@ FIXTURES_CACHE_DIR = DATA_RAW / "fixtures"
 FD_UK_FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
 FD_UK_FIXTURES_CSV = DATA_RAW / "fixtures.csv"
 TEAM_NAME_MAP_PATH = ROOT / "data" / "reference" / "team_name_map.json"
-PUBLISH_WINDOW_DAYS = 10
+# Fixtures kicking off inside this many days are eligible for a new ledger line.
+PUBLISH_WINDOW_DAYS = 7
 FD_ORG_BASE = "https://api.football-data.org/v4"
 
 
