@@ -89,6 +89,18 @@ def main() -> None:
 
     db = init_db()
     conn = connect(db)
+    real = conn.execute(
+        "SELECT model_version FROM model_artefacts WHERE model_version != ? LIMIT 1",
+        (VERSION,),
+    ).fetchone()
+    if real is not None:
+        conn.close()
+        print(
+            "error: refusing to seed a store that already has a real model version "
+            f"({real['model_version']}).",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     upsert_model_artefact(
         conn,
         VERSION,

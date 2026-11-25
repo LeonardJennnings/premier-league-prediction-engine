@@ -519,3 +519,25 @@ def test_settle_main_logs_counts(monkeypatch, caplog):
         main()
     assert "settled=1" in caplog.text
     assert "unsettled=2" in caplog.text
+
+
+def test_awarded_score_is_settled(tmp_path, monkeypatch):
+    db = _patch_db(monkeypatch, tmp_path)
+    conn = connect(db)
+    insert_prediction(conn, _row(match_id=1001, kickoff_utc="2026-11-18T15:00:00Z"))
+    conn.close()
+    payload = {
+        "matches": [
+            _finished(1001, "2026-11-18T15:00:00Z", 3, 0, "HOME_TEAM", status="AWARDED"),
+        ]
+    }
+    _patch_payload(monkeypatch, payload)
+    counts = settle_from_api(token="secret-token")
+    assert counts["settled"] == 1
+    conn = connect(db)
+    row = get_prediction(conn, 1001, "dc-test-1")
+    conn.close()
+    assert row["status"] == "settled"
+    assert row["home_goals"] == 3
+    assert row["away_goals"] == 0
+    assert row["result"] == "H"

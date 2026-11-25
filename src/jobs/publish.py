@@ -48,6 +48,7 @@ def publish_slate(
     *,
     now_utc: datetime | None = None,
     token: str | None = None,
+    matches: list | None = None,
 ) -> dict:
     """Load an artefact and append one ledger line per new in-window match.
 
@@ -64,17 +65,20 @@ def publish_slate(
     model, _temperature, _hyperparams = load_artefact(version, models_dir=MODELS_DIR)
     public_version = published_model_version(version)
 
-    date_from = now.date()
-    # football-data.org dateTo is exclusive, so add one day to include the last day.
-    date_to = (now + timedelta(days=PUBLISH_WINDOW_DAYS)).date() + timedelta(days=1)
-    # Skip the cache read. A same-day postponement or a newly listed fixture
-    # must show up on the next publish. A successful fetch still writes the cache.
-    fetched = fetch_pl_matches(
-        date_from.isoformat(),
-        date_to.isoformat(),
-        token=token,
-        use_cache=False,
-    )
+    if matches is None:
+        date_from = now.date()
+        # football-data.org dateTo is exclusive, so add one day to include the last day.
+        date_to = (now + timedelta(days=PUBLISH_WINDOW_DAYS)).date() + timedelta(days=1)
+        # Skip the cache read. A same-day postponement or a newly listed fixture
+        # must show up on the next publish. A successful fetch still writes the cache.
+        fetched = fetch_pl_matches(
+            date_from.isoformat(),
+            date_to.isoformat(),
+            token=token,
+            use_cache=False,
+        )
+    else:
+        fetched = list(matches)
     in_window = matches_in_publish_window(fetched, now_utc=now)
 
     counts = {

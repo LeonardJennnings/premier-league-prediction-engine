@@ -12,9 +12,9 @@ Use the same name in each place. It matches `.env.example`.
 |---|---|
 | Local `.env` (gitignored) | Laptop `publish` / `settle` |
 | Cursor Cloud Agent environment secret | Cloud agents on a VM that booted after the secret was saved |
-| GitHub Actions secret | [Slate refresh](../.github/workflows/slate-refresh.yml) only |
+| GitHub Actions secret | [Daily ledger](../.github/workflows/daily-ledger.yml) and [Slate refresh](../.github/workflows/slate-refresh.yml) |
 
-[CI](../.github/workflows/ci.yml) runs pytest and the Astro build. The token is read by **Slate refresh** (`publish` and `settle` only).
+[CI](../.github/workflows/ci.yml) runs pytest and the Astro build. It does not read the token. The daily job and the manual slate refresh do.
 
 Cursor published-app secrets are a different store. The static site reads the committed upcoming snapshot (or a live API). Leave the token off the published app.
 
@@ -52,6 +52,24 @@ The snapshot exported on 2026-11-17 (`dc-20261108-a7b8d765`) runs from `2026-11-
 
 Past pages still read the live API, then the labelled sample in `web/src/lib/sample.ts`. Wiring this file into those pages is a separate change. An empty ledger writes zero weeks.
 
+## Daily ledger
+
+One command does the day's work. It settles finished matches, refits only when a new result is later than the current model, publishes fixtures in the next 7 days that do not already have a line, captures book prices, and rebuilds the site files.
+
+```bash
+python -m src.jobs.daily --dry-run
+python -m src.jobs.daily
+python -m src.jobs.daily --commit
+```
+
+`--dry-run` prints how many rows it would add, settle, and price-fill. It does not write a file. A second real run with no new scores does not create a commit. An unknown team name or a failed fixtures call writes nothing and logs `ALERT: daily ledger failed`.
+
+Workflow: **Daily ledger** (`.github/workflows/daily-ledger.yml`). It runs at 06:00 UTC and can be started by hand. The manual run has a dry-run switch. Only one run is allowed at a time. On failure it opens an issue titled `Daily ledger failed`.
+
+The schedule needs a repository Actions secret named `FOOTBALL_DATA_ORG_TOKEN`. The workflow asks for permission to write contents and issues. If a push to `main` is rejected, allow GitHub Actions to push, or the failed run will open that issue.
+
+The same command runs on a machine that already has the token in its environment. The site files it writes are `web/src/data/ledger-upcoming.json`, `web/src/data/ledger-settled.json`, and `web/src/data/ledger-scorecard.json`. They are grouped by matchday. A postponed match stays in the list and is left out of the averages.
+
 ## GitHub Actions stub
 
 Workflow: **Slate refresh** (`.github/workflows/slate-refresh.yml`).
@@ -68,7 +86,7 @@ Limits, so this stays a stub:
 
 - The workflow uploads artifacts and leaves `main` unchanged. Review the artifact, then commit the JSON you want kept.
 - Each Actions run starts without `predictions.sqlite`. Fitted `models/<version>/model.json` and `data/ledger/` are committed. Settle on a fresh runner still exits 2 until that local store exists.
-- Cron stays off. Add a schedule after a manual `publish` run has succeeded and the SQLite file has a home between runs.
+- The daily ledger workflow is the scheduled job. This stub is only for a one-off artifact.
 
 ## Related commands
 

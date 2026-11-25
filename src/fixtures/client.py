@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,8 @@ def normalize_match(raw: dict) -> dict:
         "status": raw.get("status"),
         "home_goals": full_time.get("home"),
         "away_goals": full_time.get("away"),
+        # The provider's own update time. Absent on older cached payloads.
+        "provider_updated_at": raw.get("lastUpdated"),
     }
 
 
@@ -54,6 +57,28 @@ def _write_cache_atomic(path: Path, payload: Any) -> None:
     os.replace(tmp, path)
 
 
+def backoff_seconds(headers, *, status_code: int = 200) -> float:
+    """Seconds to wait before the next fixtures call.
+
+    A missing budget header does not wait. Remaining-minute of 0, or HTTP 429,
+    waits for the provider reset and never longer than 60 seconds.
+    """
+    remaining = _header(headers, "x-requests-available-minute")
+    reset = _header(headers, "x-requestcounter-reset")
+    try:
+        left = int(remaining) if remaining is not None else None
+    except ValueError:
+        left = None
+    try:
+        wait = int(reset) if reset is not None else 60
+    except ValueError:
+        wait = 60
+    wait = float(min(max(wait, 0), 60))
+    if status_code == 429 or left == 0:
+        return wait
+    return 0.0
+
+
 def fetch_pl_matches(
     date_from: str,
     date_to: str,
@@ -63,6 +88,7 @@ def fetch_pl_matches(
     session=None,
     status: str | None = None,
     use_cache: bool = True,
+    write_cache: bool = True,
 ) -> list[dict]:
     cache_dir = FIXTURES_CACHE_DIR if cache_dir is None else cache_dir
     cache_file = _cache_path(cache_dir, date_from, date_to, status)
@@ -84,8 +110,44 @@ def fetch_pl_matches(
         url += f"&status={status}"
     headers = {"X-Auth-Token": auth}
     getter = session.get if session is not None else requests.get
-    response = getter(url, headers=headers, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
+    response = _get_with_backoff(getter, url, headers)
     payload = response.json()
-    _write_cache_atomic(cache_file, payload)
+    if write_cache:
+        _write_cache_atomic(cache_file, payload)
     return _matches_from_payload(payload)
+
+
+def _get_with_backoff(getter, url: str, headers: dict):
+    response = getter(url, headers=headers, timeout=REQUEST_TIMEOUT)
+    status = getattr(response, "status_code", 200)
+    if status == 429:
+        delay = backoff_seconds(getattr(response, "headers", None), status_code=429)
+        if delay:
+            time.sleep(delay)
+        response = getter(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        status = getattr(response, "status_code", 200)
+    response.raise_for_status()
+    delay = backoff_seconds(getattr(response, "headers", None), status_code=status)
+    if delay:
+        time.sleep(delay)
+    return response
+
+
+def _header(headers, name: str) -> str | None:
+    if not headers:
+        return None
+    getter = getattr(headers, "get", None)
+    if getter is not None:
+        value = getter(name)
+        if value is None:
+            value = getter(name.upper())
+        if value is not None:
+            return str(value)
+    try:
+        pairs = list(headers.items())
+    except Exception:
+        return None
+    for key, value in pairs:
+        if str(key).lower() == name and value is not None:
+            return str(value)
+    return None

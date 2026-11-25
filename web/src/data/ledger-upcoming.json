@@ -1,0 +1,730 @@
+{
+  "matchdays": [
+    {
+      "matchday": 12,
+      "matches": [
+        {
+          "away_goals": null,
+          "away_team": "Chelsea",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Nott'm Forest",
+          "kickoff_utc": "2026-11-27T20:00:00Z",
+          "lambda_away": 1.3570633959388256,
+          "lambda_home": 1.4911108641931259,
+          "league_average_teams": [],
+          "match_id": 560658,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.1253480757024818
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 2,
+              "probability": 0.08742661126153328
+            },
+            {
+              "away": 2,
+              "home": 1,
+              "probability": 0.07956715816580184
+            }
+          ],
+          "p_away": 0.3369032449247847,
+          "p_btts_no": 0.4164939612984094,
+          "p_btts_yes": 0.5834667552608388,
+          "p_draw": 0.26587325238855714,
+          "p_home": 0.3971842192459066,
+          "p_over_25": 0.5419500964806175,
+          "p_under_25": 0.45804990351938235,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9339656287733582,
+              "under": 0.0660343712266417
+            },
+            "1.5": {
+              "over": 0.7850825466865539,
+              "under": 0.214917453313446
+            },
+            "2.5": {
+              "over": 0.5419500964806175,
+              "under": 0.45804990351938235
+            },
+            "3.5": {
+              "over": 0.3187974422935672,
+              "under": 0.6812025577064329
+            },
+            "4.5": {
+              "over": 0.15990303085964608,
+              "under": 0.8400969691403539
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Coventry",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Leeds",
+          "kickoff_utc": "2026-11-28T15:00:00Z",
+          "lambda_away": 0.9811139598101845,
+          "lambda_home": 2.101160021892677,
+          "league_average_teams": [],
+          "match_id": 560652,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 0,
+            "home": 2,
+            "probability": 0.10122171246691337
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 1,
+              "probability": 0.10104573032286009
+            },
+            {
+              "away": 1,
+              "home": 2,
+              "probability": 0.0993100351371813
+            }
+          ],
+          "p_away": 0.16055429753672934,
+          "p_btts_no": 0.44470881043473365,
+          "p_btts_yes": 0.5549515854645082,
+          "p_draw": 0.2148569849651925,
+          "p_home": 0.62424911339732,
+          "p_over_25": 0.5949878033076551,
+          "p_under_25": 0.405012196692345,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9476281737673543,
+              "under": 0.05237182623264595
+            },
+            "1.5": {
+              "over": 0.8193248395296009,
+              "under": 0.1806751604703995
+            },
+            "2.5": {
+              "over": 0.5949878033076551,
+              "under": 0.405012196692345
+            },
+            "3.5": {
+              "over": 0.3711940868224913,
+              "under": 0.6288059131775091
+            },
+            "4.5": {
+              "over": 0.19874569942478904,
+              "under": 0.8012543005752111
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Brentford",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Man United",
+          "kickoff_utc": "2026-11-28T15:00:00Z",
+          "lambda_away": 1.6609844766411586,
+          "lambda_home": 1.5777582652361986,
+          "league_average_teams": [],
+          "match_id": 560655,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.10984793608192533
+          },
+          "next_scores": [
+            {
+              "away": 2,
+              "home": 1,
+              "probability": 0.08534410226171008
+            },
+            {
+              "away": 1,
+              "home": 2,
+              "probability": 0.08106780323731277
+            }
+          ],
+          "p_away": 0.39429315802810966,
+          "p_btts_no": 0.3500712386623677,
+          "p_btts_yes": 0.6498277637898158,
+          "p_draw": 0.24664947598336795,
+          "p_home": 0.3589563684407058,
+          "p_over_25": 0.6281231236885646,
+          "p_under_25": 0.3718768763114355,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9537021737154656,
+              "under": 0.04629782628453476
+            },
+            "1.5": {
+              "over": 0.8408701417576256,
+              "under": 0.15912985824237472
+            },
+            "2.5": {
+              "over": 0.6281231236885646,
+              "under": 0.3718768763114355
+            },
+            "3.5": {
+              "over": 0.4060939683786566,
+              "under": 0.5939060316213434
+            },
+            "4.5": {
+              "over": 0.22632013956737543,
+              "under": 0.7736798604326247
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Aston Villa",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Ipswich",
+          "kickoff_utc": "2026-11-28T17:30:00Z",
+          "lambda_away": 2.042690921514294,
+          "lambda_home": 1.4399472119820291,
+          "league_average_teams": [],
+          "match_id": 560653,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.09660790653089327
+          },
+          "next_scores": [
+            {
+              "away": 2,
+              "home": 1,
+              "probability": 0.09230630556116748
+            },
+            {
+              "away": 2,
+              "home": 2,
+              "probability": 0.06645810367058219
+            }
+          ],
+          "p_away": 0.5089294281965442,
+          "p_btts_no": 0.32959440872993834,
+          "p_btts_yes": 0.670108786241066,
+          "p_draw": 0.22624616957638874,
+          "p_home": 0.2645275971980712,
+          "p_over_25": 0.6759296179263123,
+          "p_under_25": 0.32407038207368827,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9630430127548064,
+              "under": 0.0369569872451942
+            },
+            "1.5": {
+              "over": 0.8684961097449997,
+              "under": 0.13150389025500087
+            },
+            "2.5": {
+              "over": 0.6759296179263123,
+              "under": 0.32407038207368827
+            },
+            "3.5": {
+              "over": 0.4596162899598555,
+              "under": 0.5403837100401444
+            },
+            "4.5": {
+              "over": 0.2712810287699864,
+              "under": 0.7287189712300137
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Liverpool",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Everton",
+          "kickoff_utc": "2026-11-29T12:00:00Z",
+          "lambda_away": 1.4619884857666314,
+          "lambda_home": 1.075386011054886,
+          "league_average_teams": [],
+          "match_id": 560656,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.1328906903344965
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 0,
+              "probability": 0.1070340839168803
+            },
+            {
+              "away": 2,
+              "home": 1,
+              "probability": 0.09087711870005745
+            }
+          ],
+          "p_away": 0.45151616398680017,
+          "p_btts_no": 0.4852881906416809,
+          "p_btts_yes": 0.5146870163394894,
+          "p_draw": 0.2788291301228091,
+          "p_home": 0.2696299128715608,
+          "p_over_25": 0.46573757908565677,
+          "p_under_25": 0.5342624209143434,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9123554567630283,
+              "under": 0.08764454323697206
+            },
+            "1.5": {
+              "over": 0.7288573908880217,
+              "under": 0.27114260911197857
+            },
+            "2.5": {
+              "over": 0.46573757908565677,
+              "under": 0.5342624209143434
+            },
+            "3.5": {
+              "over": 0.25044219509950943,
+              "under": 0.7495578049004906
+            },
+            "4.5": {
+              "over": 0.11387094094704808,
+              "under": 0.8861290590529519
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Bournemouth",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Fulham",
+          "kickoff_utc": "2026-11-29T14:05:00Z",
+          "lambda_away": 1.2241300997623215,
+          "lambda_home": 1.164389981899124,
+          "league_average_teams": [],
+          "match_id": 560657,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.13981665591987613
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 0,
+              "probability": 0.10331527573098936
+            },
+            {
+              "away": 0,
+              "home": 0,
+              "probability": 0.10078288743378137
+            }
+          ],
+          "p_away": 0.3668684566880759,
+          "p_btts_no": 0.5053405625552374,
+          "p_btts_yes": 0.4946499243245183,
+          "p_draw": 0.295286960413639,
+          "p_home": 0.337835069778041,
+          "p_over_25": 0.4272890732103249,
+          "p_under_25": 0.5727109267896751,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.8992171125662184,
+              "under": 0.10078288743378137
+            },
+            "1.5": {
+              "over": 0.6980686362420335,
+              "under": 0.3019313637579665
+            },
+            "2.5": {
+              "over": 0.4272890732103249,
+              "under": 0.5727109267896751
+            },
+            "3.5": {
+              "over": 0.2188810907981667,
+              "under": 0.7811189092018332
+            },
+            "4.5": {
+              "over": 0.09443442800567038,
+              "under": 0.9055655719943294
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Newcastle",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Brighton",
+          "kickoff_utc": "2026-11-29T14:05:00Z",
+          "lambda_away": 1.0678630861239298,
+          "lambda_home": 2.1330787904268895,
+          "league_average_teams": [],
+          "match_id": 560659,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.09915737991133473
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 2,
+              "probability": 0.09893454925479805
+            },
+            {
+              "away": 0,
+              "home": 2,
+              "probability": 0.09264722279511056
+            }
+          ],
+          "p_away": 0.17457179833813793,
+          "p_btts_no": 0.41496540509589147,
+          "p_btts_yes": 0.5846555705289457,
+          "p_draw": 0.21455836594638059,
+          "p_home": 0.6104908113403188,
+          "p_over_25": 0.6202927961811894,
+          "p_under_25": 0.37970720381881073,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9528809990329248,
+              "under": 0.047119000967075136
+            },
+            "1.5": {
+              "over": 0.8353167328829306,
+              "under": 0.16468326711706927
+            },
+            "2.5": {
+              "over": 0.6202927961811894,
+              "under": 0.37970720381881073
+            },
+            "3.5": {
+              "over": 0.39768994618846526,
+              "under": 0.6023100538115345
+            },
+            "4.5": {
+              "over": 0.21955525009314802,
+              "under": 0.780444749906852
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Tottenham",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Sunderland",
+          "kickoff_utc": "2026-11-29T14:05:00Z",
+          "lambda_away": 1.0137461406326767,
+          "lambda_home": 1.0820950961854148,
+          "league_average_teams": [],
+          "match_id": 560660,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.14419039237651585
+          },
+          "next_scores": [
+            {
+              "away": 0,
+              "home": 0,
+              "probability": 0.13226633955184397
+            },
+            {
+              "away": 0,
+              "home": 1,
+              "probability": 0.12376214004446297
+            }
+          ],
+          "p_away": 0.3233053049200843,
+          "p_btts_no": 0.5694743642339725,
+          "p_btts_yes": 0.43052225150711587,
+          "p_draw": 0.31828151916752917,
+          "p_home": 0.3584097916534751,
+          "p_over_25": 0.34924560402546445,
+          "p_under_25": 0.6507543959745354,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.8677336604481564,
+              "under": 0.13226633955184397
+            },
+            "1.5": {
+              "over": 0.628614029697401,
+              "under": 0.37138597030259923
+            },
+            "2.5": {
+              "over": 0.34924560402546445,
+              "under": 0.6507543959745354
+            },
+            "3.5": {
+              "over": 0.16057179868231358,
+              "under": 0.8394282013176864
+            },
+            "4.5": {
+              "over": 0.06171421329592237,
+              "under": 0.9382857867040777
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Hull",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Crystal Palace",
+          "kickoff_utc": "2026-11-29T14:05:00Z",
+          "lambda_away": 1.2842663771894804,
+          "lambda_home": 0.8958773320418986,
+          "league_average_teams": [],
+          "match_id": 560661,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.13900590287270578
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 0,
+              "probability": 0.13618936641465124
+            },
+            {
+              "away": 0,
+              "home": 0,
+              "probability": 0.12199049575767529
+            }
+          ],
+          "p_away": 0.44566034337435595,
+          "p_btts_no": 0.5631088738365202,
+          "p_btts_yes": 0.43688236362779437,
+          "p_draw": 0.3035427314721871,
+          "p_home": 0.25078816261777154,
+          "p_over_25": 0.37195724886035975,
+          "p_under_25": 0.62804275113964,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.8780095042423247,
+              "under": 0.12199049575767529
+            },
+            "1.5": {
+              "over": 0.6495285545904901,
+              "under": 0.3504714454095097
+            },
+            "2.5": {
+              "over": 0.37195724886035975,
+              "under": 0.62804275113964
+            },
+            "3.5": {
+              "over": 0.17675728488924006,
+              "under": 0.82324271511076
+            },
+            "4.5": {
+              "over": 0.07036629151578279,
+              "under": 0.9296337084842172
+            }
+          },
+          "uses_league_average": false
+        },
+        {
+          "away_goals": null,
+          "away_team": "Man City",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Arsenal",
+          "kickoff_utc": "2026-11-29T16:30:00Z",
+          "lambda_away": 0.8794506517538709,
+          "lambda_home": 1.509232747531595,
+          "league_average_teams": [],
+          "match_id": 560654,
+          "matchday": 12,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 1,
+            "probability": 0.13017561578929984
+          },
+          "next_scores": [
+            {
+              "away": 0,
+              "home": 1,
+              "probability": 0.13007701464998517
+            },
+            {
+              "away": 0,
+              "home": 2,
+              "probability": 0.10449377644570494
+            }
+          ],
+          "p_away": 0.21101145702417168,
+          "p_btts_no": 0.5359321177460745,
+          "p_btts_yes": 0.4640384161892809,
+          "p_draw": 0.2772123071956177,
+          "p_home": 0.5117467697155659,
+          "p_over_25": 0.42733182300082406,
+          "p_under_25": 0.5726681769991759,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.8998538987508289,
+              "under": 0.10014610124917063
+            },
+            "1.5": {
+              "over": 0.6974826305638241,
+              "under": 0.30251736943617547
+            },
+            "2.5": {
+              "over": 0.42733182300082406,
+              "under": 0.5726681769991759
+            },
+            "3.5": {
+              "over": 0.21891512820615852,
+              "under": 0.7810848717938415
+            },
+            "4.5": {
+              "over": 0.09445475345866772,
+              "under": 0.9055452465413323
+            }
+          },
+          "uses_league_average": false
+        }
+      ]
+    },
+    {
+      "matchday": 13,
+      "matches": [
+        {
+          "away_goals": null,
+          "away_team": "Ipswich",
+          "book": null,
+          "home_goals": null,
+          "home_team": "Coventry",
+          "kickoff_utc": "2026-12-01T20:00:00Z",
+          "lambda_away": 1.6252327618071396,
+          "lambda_home": 2.248092730721141,
+          "league_average_teams": [],
+          "match_id": 560668,
+          "matchday": 13,
+          "model_version": "dc-20261123-e6a133cc-grid",
+          "most_likely_score": {
+            "away": 1,
+            "home": 2,
+            "probability": 0.08537881588377493
+          },
+          "next_scores": [
+            {
+              "away": 1,
+              "home": 1,
+              "probability": 0.08119323896023284
+            },
+            {
+              "away": 2,
+              "home": 2,
+              "probability": 0.06938022436930538
+            }
+          ],
+          "p_away": 0.27342833968889385,
+          "p_btts_no": 0.2763275566119325,
+          "p_btts_yes": 0.7230745929599662,
+          "p_draw": 0.21223972513938416,
+          "p_home": 0.5137340847436209,
+          "p_over_25": 0.742741898616992,
+          "p_under_25": 0.257258101383008,
+          "provider_updated_at": null,
+          "result": null,
+          "score_omitted_reason": null,
+          "status": "scheduled",
+          "totals": {
+            "0.5": {
+              "over": 0.9739743081300993,
+              "under": 0.026025691869900523
+            },
+            "1.5": {
+              "over": 0.9039244217556028,
+              "under": 0.09607557824439697
+            },
+            "2.5": {
+              "over": 0.742741898616992,
+              "under": 0.257258101383008
+            },
+            "3.5": {
+              "over": 0.5413987554188215,
+              "under": 0.45860124458117846
+            },
+            "4.5": {
+              "over": 0.34643187309501006,
+              "under": 0.6535681269049899
+            }
+          },
+          "uses_league_average": false
+        }
+      ]
+    }
+  ],
+  "note": "Matches still to kick off. Grouped by matchday."
+}

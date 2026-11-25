@@ -124,8 +124,8 @@ def test_upcoming_latest_preserves_null_books(client: TestClient):
     r = client.get("/v1/predictions/upcoming")
     assert r.status_code == 200
     body = r.json()
-    assert body["model_version"] == "v-new"
-    assert [m["match_id"] for m in body["matches"]] == [1]
+    assert body["model_version"] == "public"
+    assert [m["match_id"] for m in body["matches"]] == [1, 4]
     match = body["matches"][0]
     assert match["home_team"] == "Arsenal"
     assert match["away_team"] == "Chelsea"
@@ -160,14 +160,14 @@ def test_upcoming_unknown_version_404(client: TestClient):
 def test_upcoming_empty_is_200(empty_client: TestClient):
     r = empty_client.get("/v1/predictions/upcoming")
     assert r.status_code == 200
-    assert r.json() == {"model_version": "v-new", "matches": []}
+    assert r.json() == {"model_version": "public", "matches": []}
 
 
 def test_weeks_listed_newest_first(client: TestClient):
     r = client.get("/v1/predictions/weeks")
     assert r.status_code == 200
     body = r.json()
-    assert body["model_version"] == "v-new"
+    assert body["model_version"] == "public"
     assert body["weeks"] == [
         {"iso_week": "2026-W46", "match_count": 1},
         {"iso_week": "2026-W45", "match_count": 1},
@@ -178,7 +178,7 @@ def test_week_detail_returns_settled_matches(client: TestClient):
     r = client.get("/v1/predictions/weeks/2026-W46")
     assert r.status_code == 200
     body = r.json()
-    assert body["model_version"] == "v-new"
+    assert body["model_version"] == "public"
     assert body["iso_week"] == "2026-W46"
     assert [m["match_id"] for m in body["matches"]] == [10]
     match = body["matches"][0]
@@ -247,15 +247,19 @@ def test_api_package_forbids_fit_and_model_imports():
                 )
 
 
-def test_upcoming_no_artefacts_404(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_upcoming_without_artefacts_is_an_empty_public_slate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("src.api.service._now_utc_iso", lambda: NOW)
     db = init_db(tmp_path / "empty.sqlite")
     client = TestClient(create_app(db_path=db))
-    r = client.get("/v1/predictions/upcoming")
-    assert r.status_code == 404
-    assert r.json()["detail"] == "no model artefacts published"
-    assert client.get("/v1/predictions/weeks").status_code == 404
-    assert client.get("/v1/models/latest").status_code == 404
+    upcoming = client.get("/v1/predictions/upcoming")
+    assert upcoming.status_code == 200
+    assert upcoming.json() == {"model_version": "public", "matches": []}
+    weeks = client.get("/v1/predictions/weeks")
+    assert weeks.status_code == 200
+    assert weeks.json() == {"model_version": "public", "weeks": []}
+    latest = client.get("/v1/models/latest")
+    assert latest.status_code == 404
+    assert latest.json()["detail"] == "no model artefacts published"
 
 
 def test_api_db_connection_is_read_only(tmp_path: Path):
