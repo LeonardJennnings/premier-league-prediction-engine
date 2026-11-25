@@ -1,0 +1,6 @@
+comparison,model_a,model_b,mean_diff,ci_low,ci_high,n_matches,n_rounds,n_bootstrap,seed,note,mean_diff_exact
+setting_scoreline,dixon_coles,grid_calibration,0.0015,-0.0012,0.0042,940,94,4000,20261124,Setting seasons chose the pair. This gap is not a clean test.,0.0014632549269415942
+later_scoreline,dixon_coles,grid_calibration,-0.0002,-0.0047,0.0046,490,49,4000,20261124,Positive means the new line has the lower scoreline log loss.,-0.000180479479170811
+later_result,dixon_coles,grid_calibration,-0.0014,-0.0047,0.0016,490,49,4000,20261124,Positive means the new line has the lower home/draw/away log loss. Not the stop rule.,-0.0014149392100487165
+later_book_new,grid_calibration,bookmaker_implied,0.0227,0.007,0.0384,490,49,4000,20261124,A positive difference means the first line has the higher log loss. The closing line is the competitor. This is not a claim about the bookmaker.,0.022730604918540342
+later_book_previous,dixon_coles,bookmaker_implied,0.0213,0.0056,0.0368,490,49,4000,20261124,A positive difference means the first line has the higher log loss. The closing line is the competitor. This is not a claim about the bookmaker.,0.021315665708491627

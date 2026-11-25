@@ -121,6 +121,26 @@ Each scored round is fit only on earlier matches. The published fit keeps the pr
 
 The run on 25 Nov 2026 kept strength 32. The committed `results/walkforward_*` tables were scored before that change, with the previous penalty. `results/THIN_DATA_PRIOR.md` is the measurement of the change. A later walk-forward run will score Dixon-Coles at strength 32. The model file already committed under `models/` is the previous fit. The next fit uses strength 32.
 
+### Score-table calibration (one scale, one correction)
+
+```bash
+python -m src.evaluate --mode grid_calibration
+```
+
+| Piece | Rule |
+|---|---|
+| Question | Does one scale on both goal rates, plus one constant low-score correction, lower scoreline log loss on later seasons? |
+| Candidates | Scales 0.95, 1.00, 1.05 and corrections -0.10, -0.05, 0.00. Nine pairs. Written down before the run |
+| Setting era | Seasons `2223`, `2324`, `2425`. Chooses the pair. Not a clean test |
+| Later era | Seasons `2526`, `2627`. Scored after the pair is frozen. Not used to pick it |
+| Selection rule | Lowest scoreline log loss. Ties keep the scale closer to 1, then the correction closer to 0 |
+| Stop rule | `docs/experiments/2026-11-25-score-table-calibration.md`. Drop if the later-season scoreline gain, previous minus new, is under 0.005 at 4 decimal places |
+| Artefacts | `results/GRID_CALIBRATION.md`, `results/grid_calibration_candidates.csv`, `results/grid_calibration_paired.csv`, `results/grid_calibration_matches.csv` |
+
+Each scored round is fit only on earlier matches. The scale and the correction are applied after the fit. The published table stays the previous one when the stop rule drops the change. The live record is not a tuning set. This run does not rebuild a score table from book prices.
+
+The run on 25 Nov 2026 dropped the change. On the later seasons the previous line minus the new line was -0.0002 (95% range -0.0047 to 0.0046, 490 matches, 49 rounds). The published score table is unchanged.
+
 **Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
 
 **OOS Benter blend (DC + closing book).** For each gameweek fold, raw Dixon–Coles 1X2 probabilities on matches with closing odds are stored as out-of-sample predictions. A second-stage Benter blend \(c \propto \exp(\alpha \log f + \beta \log \pi)\) is fit on **prior folds only**, then applied to the current fold. The summary reports mean `blend_alpha`, `blend_beta`, and `blend_w_model = α/(α+β)`. Publish the weight even when \(w_{\text{model}} \approx 0\) (market dominates) — that is a valid scientific result, not a harness failure. The blend fuses against **closing** Bet365 for the “does the model add anything after a sharp prior?” question; opening remains a separate publish-time comparator and is not mixed into this line. Skipped until `BLEND_MIN_ROWS` (200) prior OOS pairs exist. Optional O/U blend uses the same nested protocol on grid-derived over vs `implied_over_25`.

@@ -47,3 +47,7 @@ The published score table uses the chosen scale and the chosen constant correcti
 ## Expected
 
 The review that prompted this note expected a scoreline change of 0.000 to 0.015. It also saw the fitted low-score correction change sign from round to round, from about -0.12 to about 0.11, with a full-sample value near -0.07. Those figures had no range. They are the motive for the candidate list, not a settled gap.
+
+## After the run
+
+The sections above were written before the run. They stay the rules. The paired gaps, the ranges, and the match counts are in `results/GRID_CALIBRATION.md`.

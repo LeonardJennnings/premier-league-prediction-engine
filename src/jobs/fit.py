@@ -14,6 +14,8 @@ from src.config import (
     DATA_PROCESSED,
     DIXON_COLES_L2,
     DIXON_COLES_MAX_GOALS,
+    GRID_CALIBRATION_RHO,
+    GRID_CALIBRATION_SCALE,
     MODELS_DIR,
     PREDICTIONS_DB,
 )
@@ -49,6 +51,10 @@ def fit_and_save(
         "max_goals": int(DIXON_COLES_MAX_GOALS),
         "temperature": float(temperature),
         "prior_kappa": float(model.prior_kappa),
+        "grid_scale": float(GRID_CALIBRATION_SCALE),
+        "grid_rho": (
+            None if GRID_CALIBRATION_RHO is None else float(GRID_CALIBRATION_RHO)
+        ),
         # Hash of the rows the fit was allowed to see. The raw CSV is not committed.
         "training_data_sha256": _training_data_hash(matches, as_of),
         # Stored for the lab. Publish does not apply this to the public row.
