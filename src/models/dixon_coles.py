@@ -79,6 +79,73 @@ def scoreline_grid_from_rates(
     return grid / total
 
 
+def adjusted_rates(
+    lam: float,
+    mu: float,
+    fitted_rho: float,
+    *,
+    scale: float = 1.0,
+    rho: float | None = None,
+) -> tuple[float, float, float]:
+    """Scale both goal rates, and optionally replace the low-score correction.
+
+    ``rho is None`` keeps the fitted correction. The returned correction is
+    projected so the low-score factors stay positive at the scaled rates.
+    """
+    if not np.isfinite(scale) or float(scale) <= 0.0:
+        raise ValueError("scale must be finite and positive")
+    if not np.isfinite(lam) or not np.isfinite(mu) or lam < 0.0 or mu < 0.0:
+        raise ValueError("rates must be finite and non-negative")
+    scaled_lam = float(lam) * float(scale)
+    scaled_mu = float(mu) * float(scale)
+    rho_value = float(fitted_rho) if rho is None else float(rho)
+    projected = _project_rho(rho_value, np.array([scaled_lam]), np.array([scaled_mu]))
+    return scaled_lam, scaled_mu, projected
+
+
+def calibrated_score_grid(
+    lam: float,
+    mu: float,
+    fitted_rho: float,
+    *,
+    scale: float = 1.0,
+    rho: float | None = None,
+    max_goals: int = DIXON_COLES_MAX_GOALS,
+) -> tuple[np.ndarray, float, float, float]:
+    """Score grid after the scale and the correction, with the rates actually used.
+
+    If the adjusted grid is not positive, the correction falls back to 0.
+    """
+    scaled_lam, scaled_mu, projected = adjusted_rates(
+        lam, mu, fitted_rho, scale=scale, rho=rho
+    )
+    try:
+        grid = scoreline_grid_from_rates(
+            scaled_lam, scaled_mu, projected, max_goals=max_goals
+        )
+        return grid, scaled_lam, scaled_mu, projected
+    except ValueError:
+        grid = scoreline_grid_from_rates(
+            scaled_lam, scaled_mu, 0.0, max_goals=max_goals
+        )
+        return grid, scaled_lam, scaled_mu, 0.0
+
+
+def _published_grid_adjustment() -> tuple[float, float | None] | None:
+    """Scale and correction for the published table, or None when both are off."""
+    from src.config import GRID_CALIBRATION_RHO, GRID_CALIBRATION_SCALE
+
+    scale = float(GRID_CALIBRATION_SCALE)
+    rho = GRID_CALIBRATION_RHO
+    if scale == 1.0 and rho is None:
+        return None
+    if not np.isfinite(scale) or scale <= 0.0:
+        raise ValueError("published scale must be finite and positive")
+    if rho is not None and not np.isfinite(float(rho)):
+        raise ValueError("published low-score correction must be finite")
+    return scale, (None if rho is None else float(rho))
+
+
 def _poisson_pmf(rate: float, max_goals: int) -> np.ndarray:
     goals = np.arange(0, max_goals + 1)
     return np.exp(-rate) * np.power(rate, goals) / np.array(
@@ -178,6 +245,18 @@ def scoreline_grid(
     if max_goals is None:
         max_goals = DIXON_COLES_MAX_GOALS
     lam, mu = expected_goals(model, home_team, away_team)
+    adjustment = _published_grid_adjustment()
+    if adjustment is not None:
+        scale, rho_override = adjustment
+        grid, _, _, _ = calibrated_score_grid(
+            lam,
+            mu,
+            model.rho,
+            scale=scale,
+            rho=rho_override,
+            max_goals=max_goals,
+        )
+        return grid
     rho = _project_rho(model.rho, np.array([lam]), np.array([mu]))
     try:
         return scoreline_grid_from_rates(lam, mu, rho, max_goals=max_goals)
@@ -205,7 +284,14 @@ def score_table(
     if max_goals is None:
         max_goals = DIXON_COLES_MAX_GOALS
     lam, mu = expected_goals(model, home_team, away_team)
-    rho = _project_rho(model.rho, np.array([lam]), np.array([mu]))
+    adjustment = _published_grid_adjustment()
+    if adjustment is not None:
+        scale, rho_override = adjustment
+        lam, mu, rho = adjusted_rates(
+            lam, mu, model.rho, scale=scale, rho=rho_override
+        )
+    else:
+        rho = _project_rho(model.rho, np.array([lam]), np.array([mu]))
     try:
         table = score_table_from_rates(lam, mu, rho, max_goals=max_goals)
     except ValueError:

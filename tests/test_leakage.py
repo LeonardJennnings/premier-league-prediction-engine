@@ -29,6 +29,7 @@ from tests.test_walkforward import _mixed_matches
 _TUNING_MODULES = (
     "src/eval/xi_tune.py",
     "src/eval/thin_prior.py",
+    "src/eval/grid_calibration.py",
     "src/eval/calibration.py",
     "src/eval/blend.py",
     "src/eval/walkforward.py",
@@ -328,4 +329,16 @@ def test_slice_7_note_is_committed_before_that_run():
     assert "1,140" in looks_text
     assert "descriptive" in looks_text
     assert "beat the book" not in looks_text.lower()
+    assert "beat the book" not in text.lower()
+
+
+def test_slice_8_note_is_committed_before_that_run():
+    note = ROOT / "docs" / "experiments" / "2026-11-25-score-table-calibration.md"
+    text = note.read_text(encoding="utf-8")
+    assert "written before the run" in text
+    assert "Stop rule" in text
+    assert "live ledger is not a tuning set" in text
+    assert "0.95" in text and "1.05" in text
+    assert "-0.10" in text and "0.00" in text
+    assert "0.005" in text
     assert "beat the book" not in text.lower()

@@ -44,6 +44,18 @@ THIN_PRIOR_EARLY_MATCHES = 8
 # The last two are scored after it is frozen, and are not used to pick it.
 THIN_PRIOR_SETTING_SEASONS = ("2223", "2324", "2425")
 THIN_PRIOR_LATER_SEASONS = ("2526", "2627")
+# Score-table calibration. Scale 1 and a missing correction leave the fitted
+# correction and the unscaled rates as the published table. A kept pair is
+# written here only if the stop rule in
+# docs/experiments/2026-11-25-score-table-calibration.md keeps the change.
+GRID_CALIBRATION_SCALE = 1.0
+GRID_CALIBRATION_RHO = None
+# Written down before the run. Nine pairs. Nothing else is tried after looking.
+GRID_CALIBRATION_SCALES = (0.95, 1.0, 1.05)
+GRID_CALIBRATION_RHOS = (-0.10, -0.05, 0.0)
+GRID_CALIBRATION_MIN_GAIN = 0.005
+GRID_CALIBRATION_SETTING_SEASONS = ("2223", "2324", "2425")
+GRID_CALIBRATION_LATER_SEASONS = ("2526", "2627")
 # Nested ξ tune: select on older seasons, freeze, score recent holdout.
 # Half-lives ≈ ln(2)/ξ days: 1386, 693, 365, 277, 198, 139, 87, 58.
 XI_TUNE_CANDIDATES = (0.0005, 0.0010, 0.0019, 0.0025, 0.0035, 0.0050, 0.0080, 0.0120)

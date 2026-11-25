@@ -217,12 +217,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Premier League evaluation")
     parser.add_argument(
         "--mode",
-        choices=("season", "walkforward", "xi_tune", "thin_prior"),
+        choices=("season", "walkforward", "xi_tune", "thin_prior", "grid_calibration"),
         default="season",
         help=(
             "season = fixed 2526 gate; walkforward = gameweek walk-forward; "
             "xi_tune = nested ξ selection on older folds + holdout report; "
-            "thin_prior = one strength for thin clubs, chosen on earlier seasons"
+            "thin_prior = one strength for thin clubs, chosen on earlier seasons; "
+            "grid_calibration = one scale and one steady low-score correction"
         ),
     )
     args = parser.parse_args()
@@ -240,6 +241,23 @@ if __name__ == "__main__":
         logger.info(
             "Strength %.4g dropped=%s (%s)",
             result.chosen_kappa,
+            result.dropped,
+            result.reason,
+        )
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)
+    elif args.mode == "grid_calibration":
+        from src.eval.grid_calibration import (
+            run_grid_calibration,
+            write_grid_calibration_artefacts,
+        )
+
+        result = run_grid_calibration()
+        paths = write_grid_calibration_artefacts(result)
+        logger.info(
+            "Scale %.2f correction %.2f dropped=%s (%s)",
+            result.chosen_scale,
+            result.chosen_rho,
             result.dropped,
             result.reason,
         )
