@@ -63,17 +63,9 @@ def test_lookup_uses_london_date_when_utc_date_differs():
     assert lookup_book(index, "Arsenal", "Everton", "2026-11-20T15:00:00Z") is None
 
 
-def test_lookup_falls_back_to_closing_prices_when_opening_is_blank():
+def test_lookup_ignores_closing_prices_when_opening_is_blank():
     index = index_fixtures_csv(CSV_PATH)
-    quote = lookup_book(index, "Spurs", "Brighton", "2026-11-22T15:00:00Z")
-    home, draw, away = _share(2.5, 3.4, 4.0)
-    over, under = _share(2.0, 1.9)
-    assert quote is not None
-    assert quote["book_p_home"] == pytest.approx(home)
-    assert quote["book_p_draw"] == pytest.approx(draw)
-    assert quote["book_p_away"] == pytest.approx(away)
-    assert quote["book_p_over_25"] == pytest.approx(over)
-    assert quote["book_p_under_25"] == pytest.approx(under)
+    assert lookup_book(index, "Spurs", "Brighton", "2026-11-22T15:00:00Z") is None
 
 
 def test_index_without_div_keeps_the_row(tmp_path: Path):

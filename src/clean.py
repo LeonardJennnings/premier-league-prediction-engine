@@ -16,8 +16,9 @@
 # away_odds_close  - closing decimal odds for away win (if present)
 # over_25_odds_open   - pre-closing over 2.5 (Bet365, else market average)
 # under_25_odds_open  - pre-closing under 2.5
-# over_25_odds_close  - closing over 2.5 (Bet365 C, else Avg C, else pre-close)
+# over_25_odds_close  - closing over 2.5 (Bet365 C, else the market-average close)
 # under_25_odds_close - closing under 2.5
+# A pre-close price is never copied into a closing column.
 
 from pathlib import Path
 from src.config import DATA_PROCESSED, SEASON_CODES, raw_path
@@ -73,22 +74,12 @@ def clean_frame(df: pd.DataFrame, season_code: str) -> pd.DataFrame:
     _copy_odds(df, out, "draw_odds_close", ["B365CD"])
     _copy_odds(df, out, "away_odds_close", ["B365CA"])
 
-    # Over/under: opening from non-C; closing prefers *C* then falls back to
-    # the pre-close series when a season lacks closing totals.
+    # Opening totals use the non-C series. Closing totals use the C series
+    # only. An earlier price is not a substitute when the close is missing.
     _copy_odds(df, out, "over_25_odds_open", ["B365>2.5", "Avg>2.5"])
     _copy_odds(df, out, "under_25_odds_open", ["B365<2.5", "Avg<2.5"])
-    _copy_odds(
-        df,
-        out,
-        "over_25_odds_close",
-        ["B365C>2.5", "AvgC>2.5", "B365>2.5", "Avg>2.5"],
-    )
-    _copy_odds(
-        df,
-        out,
-        "under_25_odds_close",
-        ["B365C<2.5", "AvgC<2.5", "B365<2.5", "Avg<2.5"],
-    )
+    _copy_odds(df, out, "over_25_odds_close", ["B365C>2.5", "AvgC>2.5"])
+    _copy_odds(df, out, "under_25_odds_close", ["B365C<2.5", "AvgC<2.5"])
 
     out["date"] = pd.to_datetime(out["date"], dayfirst=True, format="mixed")
     out["home_goals"] = pd.to_numeric(out["home_goals"], errors="coerce")

@@ -97,11 +97,12 @@ def test_clean_frame_maps_b365_over_under_25():
     )
     out = clean_frame(raw, "2526")
 
-    # Pre-close only: opening and closing both fall back to B365>2.5.
+    # Pre-close only. The opening column keeps the price. The closing column
+    # stays empty rather than borrowing that earlier price.
     assert out.loc[0, "over_25_odds_open"] == 1.80
     assert out.loc[0, "under_25_odds_open"] == 2.10
-    assert out.loc[0, "over_25_odds_close"] == 1.80
-    assert out.loc[0, "under_25_odds_close"] == 2.10
+    assert "over_25_odds_close" not in out.columns
+    assert "under_25_odds_close" not in out.columns
     assert "B365>2.5" not in out.columns
     assert "B365<2.5" not in out.columns
 
@@ -131,7 +132,7 @@ def test_clean_frame_prefers_closing_over_under_c_columns():
     assert out.loc[0, "under_25_odds_close"] == 2.20
 
 
-def test_clean_frame_falls_back_to_avg_over_under_25():
+def test_clean_frame_uses_market_average_as_opening_when_bet365_is_absent():
     raw = pd.DataFrame(
         [
             {
@@ -148,8 +149,10 @@ def test_clean_frame_falls_back_to_avg_over_under_25():
     )
     out = clean_frame(raw, "2526")
 
-    assert out.loc[0, "over_25_odds_close"] == 1.75
-    assert out.loc[0, "under_25_odds_close"] == 2.05
+    assert out.loc[0, "over_25_odds_open"] == 1.75
+    assert out.loc[0, "under_25_odds_open"] == 2.05
+    assert "over_25_odds_close" not in out.columns
+    assert "under_25_odds_close" not in out.columns
 
 
 def test_clean_frame_prefers_b365_over_avg_over_under_25():
@@ -171,8 +174,10 @@ def test_clean_frame_prefers_b365_over_avg_over_under_25():
     )
     out = clean_frame(raw, "2526")
 
-    assert out.loc[0, "over_25_odds_close"] == 1.80
-    assert out.loc[0, "under_25_odds_close"] == 2.10
+    assert out.loc[0, "over_25_odds_open"] == 1.80
+    assert out.loc[0, "under_25_odds_open"] == 2.10
+    assert "over_25_odds_close" not in out.columns
+    assert "under_25_odds_close" not in out.columns
 
 
 def test_clean_frame_missing_over_under_columns_is_ok():
