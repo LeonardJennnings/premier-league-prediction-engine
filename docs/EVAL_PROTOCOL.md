@@ -162,6 +162,29 @@ Each scored round fits the model only on earlier matches. The pure model stays t
 
 The run on 25 Nov 2026 kept weight 0.25 as a second line labelled model plus market. On the later seasons the reconstructed closing table minus the blend was -0.0073 (95% range -0.0162 to 0.0018, 490 matches, 49 rounds). The range includes zero. The gap is under 0.01, so it is not a success. The pure model stays beside it. The second line is written only when the price available before kickoff has home, draw, away and over/under 2.5. The headline walk-forward tables were not regenerated.
 
+### Two speeds of memory (one weight)
+
+```bash
+python -m src.evaluate --mode two_speed
+```
+
+| Piece | Rule |
+|---|---|
+| Question | Does one weight, mixing a slow Dixon-Coles fit with a fast Dixon-Coles fit, lower scoreline log loss on later seasons? |
+| Candidates | Weights 0.00, 0.05, 0.10, 0.25, 0.50, 1.00 on the fast fit's goal rates. Written down before the run |
+| Decays | Slow decay stays at 0.0035. Fast decay is 0.0120, already in `XI_TUNE_CANDIDATES`. Neither is searched |
+| Input | Goals and dates only. The closing price is not an input. This is not a state-space model |
+| Setting era | Seasons `2223`, `2324`, `2425`. Chooses the weight. Not a clean test |
+| Later era | Seasons `2526`, `2627`. Scored after the weight is frozen. Not used to pick it |
+| Selection rule | Lowest scoreline log loss. Ties keep the smaller weight |
+| Stop rule | `docs/experiments/2026-11-26-two-speed-memory.md`. Drop if the weight is under 0.10, or the later-season scoreline gain versus the pure model is under 0.005, or that range includes zero |
+| Edge | Lower scoreline log loss than the reconstructed closing table on the later seasons, with the range excluding zero. Required before the line may replace the pure model |
+| Artefacts | `results/TWO_SPEED.md`, `results/two_speed_candidates.csv`, `results/two_speed_paired.csv`, `results/two_speed_matches.csv` |
+
+Each scored round fits both decays only on earlier matches. The published model stays the current pure model when the stop rule drops the line. A kept line that does not meet the edge definition is a labelled alternative. The live record is not a tuning set. The expected shrink, 0.000 to 0.015, is not enough on its own to clear the reconstructed closing table.
+
+The run on 26 Nov 2026 chose weight 0.00. On the setting seasons the scoreline log loss rose from 3.0266 at weight 0.00 to 3.0510 at weight 1.00 (940 matches). The stop rule drops the line. The later-season paired gain versus the pure model is 0.0000 (95% range 0.0000 to 0.0000, 490 matches, 49 rounds) because the chosen line is the pure model, and that range includes zero. On those matches the reconstructed closing table minus this pure model is -0.0287 (95% range -0.0502 to -0.0079, 490 matches, 49 rounds). The edge definition is not met. The published model is unchanged. Home, draw or away log loss on those matches, reconstructed table minus this model, is -0.0196 (95% range -0.0348 to -0.0047, 490 matches, 49 rounds). It did not choose the weight.
+
 **Calibrated vs raw coverage.** The calibrated Dixon–Coles line is skipped until the prior-fold prediction store has at least 200 rows (`CALIBRATION_MIN_ROWS`). Summary tables can therefore show fewer folds for `dixon_coles_calibrated` than for `dixon_coles`. Compare those two lines on shared gameweeks, not on the headline means. Season gate reports raw Dixon–Coles and Elo only; calibrated 1X2 is walk-forward-only in this version.
 
 **OOS Benter blend (DC + closing book).** For each gameweek fold, raw Dixon–Coles 1X2 probabilities on matches with closing odds are stored as out-of-sample predictions. A second-stage Benter blend \(c \propto \exp(\alpha \log f + \beta \log \pi)\) is fit on **prior folds only**, then applied to the current fold. The summary reports mean `blend_alpha`, `blend_beta`, and `blend_w_model = α/(α+β)`. Publish the weight even when \(w_{\text{model}} \approx 0\) (market dominates) — that is a valid scientific result, not a harness failure. The blend fuses against **closing** Bet365 for the “does the model add anything after a sharp prior?” question; opening remains a separate publish-time comparator and is not mixed into this line. Skipped until `BLEND_MIN_ROWS` (200) prior OOS pairs exist. Optional O/U blend uses the same nested protocol on grid-derived over vs `implied_over_25`.
