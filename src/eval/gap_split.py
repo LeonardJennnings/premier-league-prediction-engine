@@ -43,6 +43,8 @@ RATE_MISS_HIGH = 0.40
 
 # The plan's line for a gap that is too small to be the tenth of a nat.
 SMALL_GAP = 0.01
+# Either club last played this many days ago or fewer. Fixed before looking.
+SHORT_REST_DAYS = 3
 
 _BIN_UNDER = "under 0.15"
 _BIN_MID = "from 0.15 to 0.40"
@@ -80,6 +82,34 @@ class GapSplitResult:
     run_date: str
     max_model_replay_error: float
     max_book_replay_error: float
+    rest_dropped: int = 0
+    rest_kept: int = 0
+
+
+def rest_comparison_group(home_days: float, away_days: float) -> str:
+    """Short rest when either club last played three days ago or fewer.
+
+    A club with no earlier match in the file is missing, and that match is
+    left out of the rest comparison.
+    """
+    home = float(home_days)
+    away = float(away_days)
+    if not np.isfinite(home) or not np.isfinite(away):
+        return "missing"
+    if home <= SHORT_REST_DAYS or away <= SHORT_REST_DAYS:
+        return "short rest"
+    return "not short rest"
+
+
+def short_rest_sits_with_overall(short_rest: QuotedGap, overall: QuotedGap) -> bool:
+    """The short-rest gap sits with the overall gap when that mean is inside its range.
+
+    The two groups are different matches. This does not rank them. It asks
+    whether the overall figure is still inside the short-rest range.
+    """
+    if short_rest.n_matches == 0 or not np.isfinite(short_rest.ci_low):
+        return False
+    return float(short_rest.ci_low) <= float(overall.mean_diff) <= float(short_rest.ci_high)
 
 
 def rate_miss_bin(abs_diff: float) -> str:
@@ -360,6 +390,59 @@ def build_match_table(scores: pd.DataFrame) -> pd.DataFrame:
     return table
 
 
+def _scored_match_id(matches: pd.DataFrame) -> pd.Series:
+    """Match id in the same form as the saved walk-forward file."""
+    dates = pd.to_datetime(matches["date"]).dt.strftime("%Y-%m-%d")
+    return (
+        matches["season_code"].astype(str)
+        + "_"
+        + dates
+        + "_"
+        + matches["home_team"].astype(str)
+        + "_"
+        + matches["away_team"].astype(str)
+    )
+
+
+def attach_schedule_flags(table: pd.DataFrame, matches: pd.DataFrame) -> pd.DataFrame:
+    """Join rest days and the first-eight-match flag onto the scored rows.
+
+    Early uses :func:`src.eval.thin_prior.annotate_matches`. There is no
+    second definition of that count. No coefficient is fit.
+    """
+    from src.eval.thin_prior import annotate_matches
+    from src.features import add_rest_days
+
+    needed = {"season_code", "date", "home_team", "away_team"}
+    missing = needed - set(matches.columns)
+    if missing:
+        raise ValueError("schedule flags need " + ", ".join(sorted(missing)))
+    flagged = add_rest_days(matches)
+    flagged = annotate_matches(flagged)
+    flagged = flagged.copy()
+    flagged["match_id"] = _scored_match_id(flagged)
+    if flagged["match_id"].duplicated().any():
+        raise ValueError("duplicate match ids while attaching schedule flags")
+    flags = flagged.loc[:, ["match_id", "home_rest_days", "away_rest_days", "early"]]
+    merged = table.merge(flags, on="match_id", how="left", indicator=True)
+    unmatched = int((merged["_merge"] != "both").sum())
+    if unmatched:
+        raise ValueError(
+            f"{unmatched} scored matches are missing from the cleaned match list"
+        )
+    merged = merged.drop(columns="_merge")
+    merged["rest_group"] = [
+        rest_comparison_group(home, away)
+        for home, away in zip(
+            merged["home_rest_days"].to_numpy(),
+            merged["away_rest_days"].to_numpy(),
+            strict=True,
+        )
+    ]
+    merged["early_group"] = np.where(merged["early"].astype(bool), "early", "not early")
+    return merged
+
+
 def quote_gap(
     family: str,
     group: str,
@@ -515,6 +598,40 @@ def summarise_match_table(
                 seed=seed,
             )
         )
+    rest_dropped = 0
+    rest_kept = 0
+    if "rest_group" in table.columns:
+        labels = table["rest_group"].to_numpy()
+        rest_dropped = int((labels == "missing").sum())
+        rest_kept = int((labels != "missing").sum())
+        for group in ("short rest", "not short rest"):
+            gaps.append(
+                _subset_gap(
+                    table,
+                    labels == group,
+                    "total_gap",
+                    "rest",
+                    group,
+                    _LOSS_NOTE,
+                    n_boot=n_boot,
+                    seed=seed,
+                )
+            )
+    if "early_group" in table.columns:
+        labels = table["early_group"].to_numpy()
+        for group in ("early", "not early"):
+            gaps.append(
+                _subset_gap(
+                    table,
+                    labels == group,
+                    "total_gap",
+                    "early",
+                    group,
+                    _LOSS_NOTE,
+                    n_boot=n_boot,
+                    seed=seed,
+                )
+            )
     rate = gaps[1]
     shape = gaps[2]
     if run_date is None:
@@ -525,6 +642,8 @@ def summarise_match_table(
         run_date=run_date,
         max_model_replay_error=float(table["model_replay_error"].max()),
         max_book_replay_error=float(table["book_replay_error"].max()),
+        rest_dropped=rest_dropped,
+        rest_kept=rest_kept,
     )
 
 
@@ -599,6 +718,24 @@ def _home_sentence(result: GapSplitResult) -> str:
     if unclear:
         parts.append(f"In seasons {_season_list(unclear)} that range includes zero.")
     return " ".join(parts)
+
+
+def _rest_sentence(result: GapSplitResult) -> str:
+    short = _lookup(result, "rest", "short rest")
+    overall = _lookup(result, "same_matches", "model minus closing reconstruction")
+    if short.n_matches == 0:
+        return "No scored match has a rest day for both clubs."
+    if short_rest_sits_with_overall(short, overall):
+        return (
+            "The short-rest gap sits with the overall gap. "
+            f"The overall mean {overall.mean_diff:.4f} lies inside the short-rest range. "
+            "A later rest-day coefficient is not started."
+        )
+    return (
+        "The short-rest gap sits away from the overall gap. "
+        f"The overall mean {overall.mean_diff:.4f} lies outside the short-rest range. "
+        "This run fits no rest-day coefficient."
+    )
 
 
 def _decision_paragraph(result: GapSplitResult) -> str:
@@ -753,15 +890,61 @@ def render_gap_split(result: GapSplitResult) -> str:
         "",
         _table(home),
         "",
-        "## Regenerate",
-        "",
-        "```bash",
-        "python -m src.evaluate --mode gap_split",
-        "```",
-        "",
-        "The grouped table is `results/gap_split.csv`.",
-        "",
     ]
+    rest = [gap for gap in result.gaps if gap.family == "rest"]
+    early = [gap for gap in result.gaps if gap.family == "early"]
+    if rest:
+        lines.extend(
+            [
+                "## Rest days",
+                "",
+                (
+                    "Rest is the number of days since that club's previous match in the "
+                    "cleaned match list. A match on the same date does not count as earlier. "
+                    f"Short rest means either club last played {SHORT_REST_DAYS} days ago or fewer. "
+                    "That cut was fixed before these losses were read. "
+                    "A club's first match in the file has no rest day. "
+                    f"{result.rest_dropped} scored matches are missing a rest day for at least one club "
+                    f"and are left out. The rest comparison uses {result.rest_kept} matches. "
+                    "Short rest and not short rest are different matches. They are not ranked. "
+                    "No coefficient is fit."
+                ),
+                "",
+                _table(rest),
+                "",
+                _rest_sentence(result),
+                "",
+            ]
+        )
+    if early:
+        lines.extend(
+            [
+                "## First eight matches of the season",
+                "",
+                (
+                    "Early means either club is inside its first eight matches of the season. "
+                    "The count is the one already used for the thin-data prior. "
+                    "A match on the same date does not count as earlier. "
+                    "Early and not early are different matches. They are not ranked. "
+                    "No coefficient is fit."
+                ),
+                "",
+                _table(early),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Regenerate",
+            "",
+            "```bash",
+            "python -m src.evaluate --mode gap_split",
+            "```",
+            "",
+            "The grouped table is `results/gap_split.csv`.",
+            "",
+        ]
+    )
     text = "\n".join(lines)
     if "·" in text:
         raise ValueError("gap split note contains a mid-dot")
@@ -806,14 +989,22 @@ def _assert_published(result: GapSplitResult, paired_path: Path) -> None:
 def run_gap_split(
     path: Path | None = None,
     *,
+    matches: pd.DataFrame | None = None,
     n_boot: int = BOOTSTRAP_DRAWS,
     seed: int = BOOTSTRAP_SEED,
     check_published: bool = True,
 ) -> GapSplitResult:
-    """Read the saved walk-forward file and split the gap. No refit."""
+    """Read the saved walk-forward file and split the gap. No refit.
+
+    ``matches`` is the cleaned match list. When it is passed, rest days and
+    the first-eight-match flag are joined onto the scored rows. No coefficient
+    is fit from those flags.
+    """
     scores_path = RESULTS / "walkforward_match_scores.csv" if path is None else Path(path)
     scores = pd.read_csv(scores_path)
     table = build_match_table(scores)
+    if matches is not None:
+        table = attach_schedule_flags(table, matches)
     result = summarise_match_table(table, n_boot=n_boot, seed=seed)
     if (
         check_published

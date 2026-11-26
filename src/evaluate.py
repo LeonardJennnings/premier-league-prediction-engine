@@ -274,9 +274,10 @@ if __name__ == "__main__":
         for label, path in paths.items():
             logger.info("Wrote %s -> %s", label, path)
     elif args.mode == "gap_split":
+        from src.clean import build_matches_table
         from src.eval.gap_split import run_gap_split, write_gap_split_artefacts
 
-        result = run_gap_split()
+        result = run_gap_split(matches=build_matches_table())
         paths = write_gap_split_artefacts(result)
         logger.info("Gap sits in the %s", result.location)
         for label, path in paths.items():

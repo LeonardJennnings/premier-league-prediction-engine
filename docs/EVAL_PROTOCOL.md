@@ -240,6 +240,8 @@ Every quoted gap uses the same round bootstrap as the walk-forward paired table:
 
 The home-rate block is the model home rate minus the reconstruction home rate, by season. It is not a scoreline gap and it is not ranked against the scoreline tables.
 
+The same command also attaches two flags. Rest days are the days since each club's previous match in the cleaned match list. A match on the same date does not count as earlier. A club's first match in the file has no rest day and that scored match is left out of the rest comparison. Short rest means either club last played 3 days ago or fewer. Early means either club is inside its first eight matches of the season, using `annotate_matches` in `src/eval/thin_prior.py`. The four gaps are model minus the closing reconstruction inside short rest, not short rest, early, and not early. Each has the same round bootstrap. The groups are different matches and are not ranked. The short-rest gap sits with the overall gap when the overall mean lies inside the short-rest range. No coefficient is fit. The raw season files are not in git. The flags are recomputed from the cleaned table when the command runs.
+
 Artefacts: `results/GAP_SPLIT.md`, `results/gap_split.csv`.
 
 ## Leakage policy

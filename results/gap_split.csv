@@ -18,3 +18,7 @@ home_rate,2324,0.0111,-0.0306,0.0517,380,38,4000,20261124,A positive number mean
 home_rate,2425,-0.0591,-0.0879,-0.0316,380,38,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
 home_rate,2526,-0.0358,-0.0613,-0.0103,380,38,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
 home_rate,2627,-0.121,-0.2047,-0.0419,110,11,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
+rest,short rest,0.0558,0.0143,0.1008,221,55,4000,20261124,A positive number means the model has the higher scoreline log loss.
+rest,not short rest,0.1083,0.0631,0.157,1202,143,4000,20261124,A positive number means the model has the higher scoreline log loss.
+early,early,0.1636,0.0783,0.2622,598,61,4000,20261124,A positive number means the model has the higher scoreline log loss.
+early,not early,0.0534,0.0319,0.0767,832,85,4000,20261124,A positive number means the model has the higher scoreline log loss.
