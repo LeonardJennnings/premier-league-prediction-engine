@@ -13,6 +13,7 @@ Feature contract
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -196,6 +197,68 @@ def add_features(
         hist_dates = pd.to_datetime(hist["date"])
         hist_cut = hist.loc[hist_dates < cutoff_ts].copy()
         out = add_history_dependent_features(out, hist_cut, cutoff=cutoff_ts)
+    return out
+
+
+def add_rest_days(matches: pd.DataFrame) -> pd.DataFrame:
+    """Days since each club's previous match in this table.
+
+    A match on the same date is not earlier. The first match in the table
+    for a club has no rest day. A later row cannot change an earlier row,
+    because the count uses only dates strictly before that row.
+    """
+    needed = ("date", "home_team", "away_team")
+    missing = [name for name in needed if name not in matches.columns]
+    if missing:
+        raise ValueError("rest days need " + ", ".join(missing))
+    out = matches.copy()
+    dates = pd.to_datetime(out["date"])
+    if dates.isna().any():
+        raise ValueError("rest days need a date on every row")
+    n = len(out)
+    home_rest = np.full(n, np.nan)
+    away_rest = np.full(n, np.nan)
+    if n == 0:
+        out["home_rest_days"] = home_rest
+        out["away_rest_days"] = away_rest
+        return out
+    rows = np.arange(n)
+    teams = np.concatenate(
+        [out["home_team"].astype(str).to_numpy(), out["away_team"].astype(str).to_numpy()]
+    )
+    long_dates = np.concatenate([dates.to_numpy(), dates.to_numpy()])
+    long_rows = np.concatenate([rows, rows])
+    long_side = np.concatenate([np.zeros(n, dtype=int), np.ones(n, dtype=int)])
+    order = np.lexsort((long_rows, long_dates, teams))
+    teams = teams[order]
+    long_dates = long_dates[order]
+    long_rows = long_rows[order]
+    long_side = long_side[order]
+    change = np.flatnonzero(teams[1:] != teams[:-1]) + 1
+    starts = np.concatenate(([0], change))
+    ends = np.concatenate((change, [len(teams)]))
+    for start, end in zip(starts, ends, strict=True):
+        group_dates = long_dates[start:end]
+        previous = np.searchsorted(group_dates, group_dates, side="left") - 1
+        has_previous = previous >= 0
+        if not has_previous.any():
+            continue
+        day_gap = (
+            group_dates[has_previous].astype("datetime64[D]")
+            - group_dates[previous[has_previous]].astype("datetime64[D]")
+        ).astype(int)
+        for row_i, side_i, days in zip(
+            long_rows[start:end][has_previous],
+            long_side[start:end][has_previous],
+            day_gap,
+            strict=True,
+        ):
+            if side_i == 0:
+                home_rest[int(row_i)] = int(days)
+            else:
+                away_rest[int(row_i)] = int(days)
+    out["home_rest_days"] = home_rest
+    out["away_rest_days"] = away_rest
     return out
 
 

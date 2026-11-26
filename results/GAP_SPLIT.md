@@ -70,6 +70,26 @@ This block is not a scoreline gap. It is the model home rate minus the reconstru
 | 2526 | -0.0358 | -0.0613 to -0.0103 | 380 | 38 |
 | 2627 | -0.1210 | -0.2047 to -0.0419 | 110 | 11 |
 
+## Rest days
+
+Rest is the number of days since that club's previous match in the cleaned match list. A match on the same date does not count as earlier. Short rest means either club last played 3 days ago or fewer. That cut was fixed before these losses were read. A club's first match in the file has no rest day. 7 scored matches are missing a rest day for at least one club and are left out. The rest comparison uses 1423 matches. Short rest and not short rest are different matches. They are not ranked. No coefficient is fit.
+
+| Group | Mean | 95% range | Matches | Rounds |
+|---|---|---|---|---|
+| short rest | 0.0558 | 0.0143 to 0.1008 | 221 | 55 |
+| not short rest | 0.1083 | 0.0631 to 0.1570 | 1202 | 143 |
+
+The short-rest gap sits with the overall gap. The overall mean 0.0995 lies inside the short-rest range. A later rest-day coefficient is not started.
+
+## First eight matches of the season
+
+Early means either club is inside its first eight matches of the season. The count is the one already used for the thin-data prior. A match on the same date does not count as earlier. Early and not early are different matches. They are not ranked. No coefficient is fit.
+
+| Group | Mean | 95% range | Matches | Rounds |
+|---|---|---|---|---|
+| early | 0.1636 | 0.0783 to 0.2622 | 598 | 61 |
+| not early | 0.0534 | 0.0319 to 0.0767 | 832 | 85 |
+
 ## Regenerate
 
 ```bash

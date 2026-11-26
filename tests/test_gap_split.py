@@ -8,14 +8,19 @@ from src.config import RESULTS
 from src.eval.gap_split import (
     RATE_MISS_HIGH,
     RATE_MISS_LOW,
+    SHORT_REST_DAYS,
+    attach_schedule_flags,
     build_match_table,
     locate_tenth,
     rate_miss_bin,
     render_gap_split,
+    rest_comparison_group,
     run_gap_split,
+    short_rest_sits_with_overall,
     summarise_match_table,
     write_gap_split_artefacts,
 )
+from src.eval.thin_prior import annotate_matches
 from src.eval.scoreline import score_scoreline
 from src.models.dixon_coles import calibrated_score_grid, scoreline_grid_from_rates
 
@@ -226,3 +231,78 @@ def test_saved_walkforward_reprints_the_committed_gap():
     assert "0.0995" in committed
     assert "0.0608 to 0.1419" in committed
     assert "·" not in committed
+    assert "The short-rest gap sits" in committed
+    assert "beats the book" not in committed.lower()
+
+
+def test_short_rest_cut_stays_at_three_days():
+    assert SHORT_REST_DAYS == 3
+    assert rest_comparison_group(3, 10) == "short rest"
+    assert rest_comparison_group(10, 3) == "short rest"
+    assert rest_comparison_group(4, 10) == "not short rest"
+    assert rest_comparison_group(float("nan"), 2) == "missing"
+
+
+def test_early_flag_is_the_thin_prior_count():
+    matches = pd.DataFrame(
+        {
+            "season_code": ["2425"] * 4,
+            "date": pd.to_datetime(["2024-08-01", "2024-08-10", "2024-08-17", "2024-08-24"]),
+            "home_team": ["Arsenal", "Chelsea", "Arsenal", "Liverpool"],
+            "away_team": ["Chelsea", "Liverpool", "Liverpool", "Arsenal"],
+        }
+    )
+    table = pd.DataFrame({"match_id": _walk_ids(matches)})
+    attached = attach_schedule_flags(table, matches)
+    expected = annotate_matches(matches)["early"].tolist()
+    assert attached["early"].tolist() == expected
+    assert attached["early_group"].tolist() == ["early" if flag else "not early" for flag in expected]
+
+
+def _walk_ids(matches: pd.DataFrame) -> list[str]:
+    dates = pd.to_datetime(matches["date"]).dt.strftime("%Y-%m-%d")
+    return [
+        f"{season}_{date}_{home}_{away}"
+        for season, date, home, away in zip(
+            matches["season_code"], dates, matches["home_team"], matches["away_team"], strict=True
+        )
+    ]
+
+
+def test_four_flag_gaps_use_the_slice_one_bootstrap():
+    specs = [
+        ("m1", "r1", "2526", 1.4, 1.1, 1.2, 1.0, 0.0, 1, 0),
+        ("m2", "r1", "2526", 1.6, 1.2, 1.3, 1.1, 0.0, 2, 1),
+        ("m3", "r2", "2526", 1.5, 1.0, 1.2, 0.9, 0.0, 0, 0),
+        ("m4", "r2", "2526", 1.3, 1.4, 1.1, 1.2, 0.0, 1, 1),
+    ]
+    rows = [row for spec in specs for row in _match_rows(*spec)]
+    table = build_match_table(_frame(rows))
+    table["rest_group"] = ["short rest", "not short rest", "short rest", "missing"]
+    table["early_group"] = ["early", "not early", "not early", "early"]
+    result = summarise_match_table(table, run_date="26 Nov 2026")
+    rest = [item for item in result.gaps if item.family == "rest"]
+    early = [item for item in result.gaps if item.family == "early"]
+    assert [item.group for item in rest] == ["short rest", "not short rest"]
+    assert [item.group for item in early] == ["early", "not early"]
+    assert result.rest_dropped == 1
+    assert result.rest_kept == 3
+    for item in (*rest, *early):
+        assert item.n_bootstrap == 4000
+        assert item.seed == 20261124
+        assert item.n_matches > 0
+    overall = next(
+        item
+        for item in result.gaps
+        if item.family == "same_matches" and item.group == "model minus closing reconstruction"
+    )
+    short = rest[0]
+    sits = short_rest_sits_with_overall(short, overall)
+    note = render_gap_split(result)
+    if sits:
+        assert "The short-rest gap sits with the overall gap." in note
+    else:
+        assert "The short-rest gap sits away from the overall gap." in note
+    assert "·" not in note
+    assert "beats the book" not in note.lower()
+    assert "coefficient is fit" in note or "coefficient is not started" in note

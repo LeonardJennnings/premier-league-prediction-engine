@@ -88,6 +88,24 @@ def test_dixon_coles_fit_ignores_price_columns():
     assert plain.rho == leaked.rho
 
 
+def test_dixon_coles_fit_ignores_rest_and_early_columns():
+    frame = _mixed_matches(30)
+    poisoned = frame.copy()
+    poisoned["home_rest_days"] = 0.0
+    poisoned["away_rest_days"] = 0.0
+    poisoned["early"] = True
+    plain = fit_dixon_coles(frame, xi=0.0)
+    leaked = fit_dixon_coles(poisoned, xi=0.0)
+    assert plain.attack == leaked.attack
+    assert plain.defence == leaked.defence
+    assert plain.home_advantage == leaked.home_advantage
+    assert plain.rho == leaked.rho
+    text = (ROOT / "src/models/dixon_coles.py").read_text(encoding="utf-8")
+    assert "home_rest_days" not in text
+    assert "away_rest_days" not in text
+    assert "short_rest" not in text
+
+
 def test_pure_model_source_does_not_name_a_price_column():
     for relative in ("src/models/dixon_coles.py", "src/models/poisson.py"):
         text = (ROOT / relative).read_text(encoding="utf-8")

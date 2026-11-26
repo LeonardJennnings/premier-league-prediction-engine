@@ -7,6 +7,7 @@ from src.features import (
     add_features,
     add_history_dependent_features,
     add_implied_odds,
+    add_rest_days,
     assert_history_before_cutoff,
     features_for_fold,
 )
@@ -204,3 +205,47 @@ def test_add_features_with_explicit_history_filters_to_cutoff():
     assert len(out) == 1
     assert abs(out.loc[out.index[0], "implied_home"] + out.loc[out.index[0], "implied_draw"]
                + out.loc[out.index[0], "implied_away"] - 1.0) < 1e-9
+
+
+def test_later_match_does_not_change_earlier_rest_days():
+    frame = pd.DataFrame(
+        {
+            "date": ["2024-08-01", "2024-08-08", "2024-08-11"],
+            "home_team": ["Arsenal", "Chelsea", "Arsenal"],
+            "away_team": ["Chelsea", "Liverpool", "Liverpool"],
+        }
+    )
+    before = add_rest_days(frame)
+    later = pd.concat(
+        [
+            frame,
+            pd.DataFrame(
+                {
+                    "date": ["2024-08-20"],
+                    "home_team": ["Arsenal"],
+                    "away_team": ["Spurs"],
+                }
+            ),
+        ],
+        ignore_index=True,
+    )
+    after = add_rest_days(later)
+    assert before["home_rest_days"].equals(after["home_rest_days"].iloc[:3].reset_index(drop=True))
+    assert before["away_rest_days"].equals(after["away_rest_days"].iloc[:3].reset_index(drop=True))
+    assert pd.isna(after.loc[0, "home_rest_days"])
+    assert after.loc[2, "home_rest_days"] == 10
+    assert after.loc[3, "home_rest_days"] == 9
+
+
+def test_same_date_matches_are_not_each_others_previous_match():
+    frame = pd.DataFrame(
+        {
+            "date": ["2024-08-10", "2024-08-10", "2024-08-14"],
+            "home_team": ["Arsenal", "Liverpool", "Arsenal"],
+            "away_team": ["Chelsea", "Arsenal", "Spurs"],
+        }
+    )
+    out = add_rest_days(frame)
+    assert pd.isna(out.loc[0, "home_rest_days"])
+    assert pd.isna(out.loc[1, "away_rest_days"])
+    assert out.loc[2, "home_rest_days"] == 4
