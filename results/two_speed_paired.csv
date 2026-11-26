@@ -1,0 +1,7 @@
+comparison,model_a,model_b,mean_diff,ci_low,ci_high,n_matches,n_rounds,n_bootstrap,seed,note,mean_diff_exact
+setting_pure_minus_two_speed_scoreline,dixon_coles,two_speed,0.0,0.0,0.0,940,94,4000,20261124,Setting seasons chose the weight. This gap is not a clean test.,0.0
+later_pure_minus_two_speed_scoreline,dixon_coles,two_speed,0.0,0.0,0.0,490,49,4000,20261124,Positive means the two-speed line has the lower scoreline log loss than the pure model.,0.0
+later_pure_minus_two_speed_result,dixon_coles,two_speed,0.0,0.0,0.0,490,49,4000,20261124,Positive means the two-speed line has the lower home/draw/away log loss. Not the stop rule.,0.0
+later_pure_minus_two_speed_ou,dixon_coles,two_speed,0.0,0.0,0.0,490,49,4000,20261124,Positive means the two-speed line has the lower over/under 2.5 log loss. Not the stop rule.,0.0
+later_book_minus_two_speed_scoreline,book_closing_table,two_speed,-0.0287,-0.0502,-0.0079,490,49,4000,20261124,Positive means the two-speed line has the lower scoreline log loss than the reconstructed closing table.,-0.02874844204436965
+later_book_minus_two_speed_result,book_closing_table,two_speed,-0.0196,-0.0348,-0.0047,490,49,4000,20261124,Positive means the two-speed line has the lower home/draw/away log loss than the reconstructed closing table. Not the edge definition.,-0.01963669513566705

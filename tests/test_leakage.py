@@ -31,6 +31,7 @@ _TUNING_MODULES = (
     "src/eval/thin_prior.py",
     "src/eval/grid_calibration.py",
     "src/eval/market_blend.py",
+    "src/eval/two_speed.py",
     "src/eval/calibration.py",
     "src/eval/blend.py",
     "src/eval/walkforward.py",
@@ -361,6 +362,22 @@ def test_slice_8_note_is_committed_before_that_run():
     assert "-0.10" in text and "0.00" in text
     assert "0.005" in text
     assert "beat the book" not in text.lower()
+
+
+def test_two_speed_note_is_committed_before_that_run():
+    note = ROOT / "docs" / "experiments" / "2026-11-26-two-speed-memory.md"
+    text = note.read_text(encoding="utf-8")
+    assert "written before the run" in text
+    assert "Stop rule" in text
+    assert "live ledger is not a tuning set" in text
+    assert "closing price is not an input" in text.lower()
+    assert "0.00" in text and "0.05" in text and "1.00" in text
+    assert "0.0035" in text and "0.0120" in text
+    assert "0.005" in text
+    assert "0.000 to 0.015" in text
+    assert "Kalman" in text
+    assert "beat the book" not in text.lower()
+    assert "·" not in text
 
 
 def test_slice_9_note_is_committed_before_that_run():

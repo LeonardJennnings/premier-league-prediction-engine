@@ -225,6 +225,7 @@ if __name__ == "__main__":
             "grid_calibration",
             "market_blend",
             "gap_split",
+            "two_speed",
         ),
         default="season",
         help=(
@@ -233,7 +234,8 @@ if __name__ == "__main__":
             "thin_prior = one strength for thin clubs, chosen on earlier seasons; "
             "grid_calibration = one scale and one steady low-score correction; "
             "market_blend = one weight on the price available before kickoff; "
-            "gap_split = split the saved scoreline gap into rates and shape, no refit"
+            "gap_split = split the saved scoreline gap into rates and shape, no refit; "
+            "two_speed = one weight between a slow fit and a fast fit"
         ),
     )
     args = parser.parse_args()
@@ -280,6 +282,21 @@ if __name__ == "__main__":
         result = run_gap_split(matches=build_matches_table())
         paths = write_gap_split_artefacts(result)
         logger.info("Gap sits in the %s", result.location)
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)
+    elif args.mode == "two_speed":
+        from src.eval.two_speed import run_two_speed, write_two_speed_artefacts
+
+        result = run_two_speed()
+        paths = write_two_speed_artefacts(result)
+        logger.info(
+            "Weight %.2f dropped=%s edge=%s replaces=%s (%s)",
+            result.chosen_weight,
+            result.dropped,
+            result.edge,
+            result.replaces_pure,
+            result.reason,
+        )
         for label, path in paths.items():
             logger.info("Wrote %s -> %s", label, path)
     elif args.mode == "market_blend":

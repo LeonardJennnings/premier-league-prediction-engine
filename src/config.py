@@ -67,6 +67,27 @@ MARKET_BLEND_MIN_WEIGHT = 0.10
 MARKET_BLEND_MIN_GAIN = 0.01
 MARKET_BLEND_SETTING_SEASONS = ("2223", "2324", "2425")
 MARKET_BLEND_LATER_SEASONS = ("2526", "2627")
+# Two speeds of memory. One weight on the fast fit's goal rates.
+# None publishes the slow fit only, which is the current pure model.
+# A weight is written here only if the stop rule in
+# docs/experiments/2026-11-26-two-speed-memory.md keeps the line, and the
+# pure model is replaced only if that note's edge definition is also met.
+# The 26 Nov 2026 run chose 0.00 and the stop rule dropped the line.
+# See results/TWO_SPEED.md. The published model is unchanged.
+TWO_SPEED_WEIGHT = None
+# Slow decay is the published time-decay setting. It is not searched again.
+TWO_SPEED_SLOW_XI = DIXON_COLES_XI
+# Fast decay is the fastest value already listed in XI_TUNE_CANDIDATES
+# (about a 58-day half-life). It is not a new decay, and this run does not
+# choose among that list.
+TWO_SPEED_FAST_XI = 0.0120
+# Written down before the run. The weight is on the fast fit's goal rates.
+# 0 is the slow fit alone. 1 is the fast fit's rates alone.
+TWO_SPEED_WEIGHTS = (0.0, 0.05, 0.10, 0.25, 0.50, 1.0)
+TWO_SPEED_MIN_WEIGHT = 0.10
+TWO_SPEED_MIN_GAIN = 0.005
+TWO_SPEED_SETTING_SEASONS = ("2223", "2324", "2425")
+TWO_SPEED_LATER_SEASONS = ("2526", "2627")
 # Nested ξ tune: select on older seasons, freeze, score recent holdout.
 # Half-lives ≈ ln(2)/ξ days: 1386, 693, 365, 277, 198, 139, 87, 58.
 XI_TUNE_CANDIDATES = (0.0005, 0.0010, 0.0019, 0.0025, 0.0035, 0.0050, 0.0080, 0.0120)
