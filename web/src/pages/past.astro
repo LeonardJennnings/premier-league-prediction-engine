@@ -30,6 +30,16 @@ const totals = overUnderSummary(matches);
 const both = bothTeamsSummary(matches);
 const running = runningBookGap(matches);
 const range = card.book_comparison.range_95;
+const recon = card.book_reconstruction ?? {
+  label:
+    "our reconstruction of the book's score table from its prices, not the bookmaker's correct-score odds",
+  match_count: 0,
+  mean_gap: null,
+  model_log_loss: null,
+  reconstruction_log_loss: null,
+  model_most_likely_hits: 0,
+  reconstruction_most_likely_hits: 0,
+};
 
 function statusLabel(status: string): string {
   if (status === "settled") return "Settled";
@@ -94,7 +104,14 @@ function statusLabel(status: string): string {
         both teams to score, model only, {both.match_count} matches
       </li>
       <li>
-        Scoreline log loss, 0 matches. These rows have no stored score table. The book's rebuilt table is not here, and league score frequencies are not here.
+        <span class="num nums">{formatNat(recon.mean_gap)}</span>
+        scoreline log loss, model minus reconstructed book, {recon.match_count} matches
+        <span class="detail">
+          {recon.match_count === 0
+            ? "No settled match has both scoreline log losses yet. A missing price is left out: "
+            : `Model ${formatNat(recon.model_log_loss)}, reconstructed book ${formatNat(recon.reconstruction_log_loss)}. Most likely score hits: model ${recon.model_most_likely_hits} of ${recon.match_count}, reconstructed book ${recon.reconstruction_most_likely_hits} of ${recon.match_count}. `}
+          {recon.label}
+        </span>
       </li>
       <li>
         <span class="num nums">{exact.hits}</span>

@@ -31,6 +31,7 @@ from src.fixtures.window import matches_in_publish_window
 from src.jobs.fit import fit_and_save, load_training_matches
 from src.jobs import publish as publish_module
 from src.jobs.publish import _mapped_fixtures, publish_slate
+from src.ledger.book_compare import scoreline_lines_for_settled
 from src.ledger.export_site import (
     SETTLED_NAME,
     SCORECARD_NAME,
@@ -40,6 +41,8 @@ from src.ledger.export_site import (
     write_site_files,
 )
 from src.ledger.log import (
+    COMPARISONS_NAME,
+    append_book_comparisons,
     append_book_lines,
     append_settlements,
     ensure_ledger,
@@ -136,10 +139,22 @@ def run_daily(
     predictions = read_jsonl(ledger / "predictions.jsonl")
     settlements = read_jsonl(ledger / "settlements.jsonl")
     book_lines = read_jsonl(ledger / "book_lines.jsonl")
+    comparisons = _read_comparisons(ledger)
+    append_book_comparisons(
+        scoreline_lines_for_settled(predictions, settlements, comparisons),
+        path=ledger,
+    )
+    comparisons = _read_comparisons(ledger)
     counts["added"] = _count_new_predictions(prediction_bytes, written)
     counts["settled"] = settled_written
     counts["price_filled"] = books_written
-    documents = build_site_files(predictions, settlements, book_lines, now_utc=now)
+    documents = build_site_files(
+        predictions,
+        settlements,
+        book_lines,
+        now_utc=now,
+        comparisons=comparisons,
+    )
     write_site_files(documents, exported)
     rebuild_store(
         predictions,
@@ -402,6 +417,13 @@ def _publish(fetched, now, token, ledger, models, database) -> None:
             publish_module.PREDICTIONS_DB,
             publish_module.MODELS_DIR,
         ) = saved
+
+
+def _read_comparisons(ledger: Path) -> list[dict]:
+    path = ledger / COMPARISONS_NAME
+    if not path.is_file():
+        return []
+    return read_jsonl(path)
 
 
 def _line_count(path: Path) -> int:

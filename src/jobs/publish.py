@@ -25,13 +25,20 @@ from src.config import (
 from src.fixtures.books import load_book_index, lookup_book
 from src.fixtures.client import fetch_pl_matches
 from src.fixtures.window import matches_in_publish_window
+from src.ledger.book_compare import publish_comparison
 from src.ledger.lines import (
     FORECAST_LINE_MARKET,
     FORECAST_LINE_MODEL,
     MARKET_VERSION_SUFFIX,
     build_prediction_line,
 )
-from src.ledger.log import append_book_lines, append_predictions
+from src.ledger.log import (
+    PREDICTIONS_NAME,
+    append_book_comparisons,
+    append_book_lines,
+    append_predictions,
+    read_jsonl,
+)
 from src.logging_setup import setup_logging
 from src.models.artefacts import (
     _resolve_version,
@@ -66,8 +73,10 @@ def publish_slate(
 
     When the price available before kickoff has home, draw, away and over/under
     2.5, a second line labelled model plus market is appended beside it. A
-    missing price leaves that match with the pure model only. The closing
-    price is not an input.
+    missing price leaves that match with the pure model only. The same publish
+    also appends one comparison of the pure model with the reconstructed book.
+    A missing price is stored there as null, with a reason. The closing price
+    is not an input.
 
     An unmapped name aborts the batch before anything is written. A mapped
     club with no fitted history is published at league-average rates and
@@ -116,6 +125,7 @@ def publish_slate(
     lines = []
     sqlite_rows = []
     book_lines = []
+    comparison_rows = []
     for fixture, home, away in mapped:
         line = build_prediction_line(
             model,
@@ -131,6 +141,7 @@ def publish_slate(
         quote = lookup_book(books, home, away, fixture["kickoff_utc"])
         lines.append(line)
         sqlite_rows.append(_sqlite_row(line, quote))
+        comparison_rows.append(publish_comparison(line, quote, recorded_at=published_at))
         if quote:
             book_lines.append(_book_line(line, quote, captured_at=published_at))
         blend = _market_line(
@@ -149,11 +160,17 @@ def publish_slate(
             sqlite_rows.append(_sqlite_row(blend, quote))
 
     # Ledger first. A started match raises here and the store is left untouched.
+    before_models = _published_model_ids(LEDGER_DIR)
     written = append_predictions(lines, now_utc=now, path=LEDGER_DIR)
     inserted_ids = set(written["inserted_ids"])
+    new_models = _published_model_ids(LEDGER_DIR) - before_models
     if inserted_ids:
         append_book_lines(
             [row for row in book_lines if int(row["match_id"]) in inserted_ids],
+            path=LEDGER_DIR,
+        )
+        append_book_comparisons(
+            [row for row in comparison_rows if int(row["match_id"]) in new_models],
             path=LEDGER_DIR,
         )
         init_db(PREDICTIONS_DB)
@@ -310,6 +327,15 @@ def _book_fields(quote: dict | None) -> dict:
         "book_p_over_25": quote.get("book_p_over_25"),
         "book_p_under_25": quote.get("book_p_under_25"),
         "book_source": quote.get("book_source"),
+    }
+
+
+def _published_model_ids(ledger: Path) -> set[int]:
+    rows = read_jsonl(Path(ledger) / PREDICTIONS_NAME)
+    return {
+        int(row["match_id"])
+        for row in rows
+        if str(row.get("forecast_line") or FORECAST_LINE_MODEL) == FORECAST_LINE_MODEL
     }
 
 

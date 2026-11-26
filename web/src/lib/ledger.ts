@@ -54,6 +54,12 @@ export type LedgerMatch = {
     p_draw: number;
     p_away: number;
   } | null;
+  book_reconstructed_score?: {
+    home: number;
+    away: number;
+    probability: number;
+    label: string;
+  } | null;
 };
 
 export type MatchdayGroup<T> = {
@@ -81,6 +87,15 @@ export type ScorecardFile = {
     closing_book_log_loss: number | null;
     gap_model_minus_closing: number | null;
     range_95: number[] | null;
+  };
+  book_reconstruction?: {
+    label: string;
+    match_count: number;
+    mean_gap: number | null;
+    model_log_loss: number | null;
+    reconstruction_log_loss: number | null;
+    model_most_likely_hits: number;
+    reconstruction_most_likely_hits: number;
   };
   exact_score: {
     match_count: number;
@@ -250,6 +265,7 @@ export function asPrediction(match: LedgerMatch): MatchPrediction {
     as_of_date: "",
     model_version: match.model_version,
     model_plus_market: match.model_plus_market ?? null,
+    book_reconstructed_score: match.book_reconstructed_score ?? null,
     home_goals: match.home_goals,
     away_goals: match.away_goals,
     result: match.result,

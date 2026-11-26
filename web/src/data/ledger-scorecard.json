@@ -9,6 +9,15 @@
       0.008015017546811809
     ]
   },
+  "book_reconstruction": {
+    "label": "our reconstruction of the book's score table from its prices, not the bookmaker's correct-score odds",
+    "match_count": 0,
+    "mean_gap": null,
+    "model_log_loss": null,
+    "model_most_likely_hits": 0,
+    "reconstruction_log_loss": null,
+    "reconstruction_most_likely_hits": 0
+  },
   "counts": {
     "pending": 0,
     "postponed": 0,
