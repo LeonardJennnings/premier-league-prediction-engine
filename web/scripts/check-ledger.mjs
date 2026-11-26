@@ -96,9 +96,16 @@ assert(
   "mean_printed_probability" in scorecard.exact_score,
   "average printed probability sits on the same tile",
 );
-for (const block of ["home_draw_away", "book_comparison", "exact_score", "goal_error"]) {
+for (const block of ["home_draw_away", "book_comparison", "book_reconstruction", "exact_score", "goal_error"]) {
   assert(typeof scorecard[block].match_count === "number", `${block} prints a match count`);
 }
+assert(scorecard.book_reconstruction.match_count === 0, "reconstructed book gap names its match count");
+assert(scorecard.book_reconstruction.mean_gap === null, "no settled reconstruction is not a zero gap");
+assert(
+  scorecard.book_reconstruction.label ===
+    "our reconstruction of the book's score table from its prices, not the bookmaker's correct-score odds",
+  "reconstructed book keeps the plain label",
+);
 assert(!JSON.stringify(scorecard).includes("last 10"), "no last-10 tile in the scorecard");
 assert(scorecard.note.includes("small number of matches"), "the short-record sentence is on the scorecard");
 
@@ -160,12 +167,26 @@ if (fs.existsSync(distIndex)) {
   assert(html.includes("Most likely score"), "production home shows a predicted score");
   assert(!html.includes("sample-local"), "production home has no sample rows");
   assert(!html.includes("127.0.0.1"), "production home does not call localhost");
-  const past = fs.readFileSync(path.join(root, "dist/past/index.html"), "utf8");
+  const pastPath = path.join(root, "dist/past/index.html");
+  const past = visibleText(pastPath, fs.readFileSync(pastPath, "utf8"));
   assert(past.includes("Actual"), "past page shows actual scores");
   assert(past.includes("Exact score not stored"), "past page says when the predicted score was not stored");
   assert(past.includes("postponed"), "past page shows the postponed count");
   assert(!past.includes("sample-local"), "past page has no sample rows");
   assert(!past.includes("last 10") && !past.includes("last ten"), "past page has no last-10 tile");
+  assert(
+    past.includes(
+      "our reconstruction of the book's score table from its prices, not the bookmaker's correct-score odds",
+    ),
+    "past page keeps the reconstruction label",
+  );
+  assert(past.includes("model minus reconstructed book"), "past page shows the scoreline gap with its count");
+  assert(!past.toLowerCase().includes("beat the book"), "past page does not claim to beat the book");
+  const matchRow = fs.readFileSync(path.join(root, "src/components/MatchRow.astro"), "utf8");
+  assert(
+    matchRow.includes("Book reconstructed most likely score"),
+    "upcoming row can name the reconstructed score",
+  );
 } else {
   assert(false, "dist is missing; run the site build before this check");
 }

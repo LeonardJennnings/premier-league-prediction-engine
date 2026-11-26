@@ -4,6 +4,7 @@ from src.ledger.backfill import backfill_matchday_11
 from src.ledger.lines import build_prediction_line
 from src.ledger.log import (
     LedgerRefused,
+    append_book_comparisons,
     append_book_lines,
     append_predictions,
     append_settlements,
@@ -13,6 +14,7 @@ from src.ledger.log import (
 
 __all__ = [
     "LedgerRefused",
+    "append_book_comparisons",
     "append_book_lines",
     "append_predictions",
     "append_settlements",

@@ -1,4 +1,4 @@
-"""Read and append the three ledger logs. Existing lines are never rewritten."""
+"""Read and append the ledger logs. Existing lines are never rewritten."""
 
 from __future__ import annotations
 
@@ -13,8 +13,9 @@ from src.config import LEDGER_DIR
 PREDICTIONS_NAME = "predictions.jsonl"
 BOOK_LINES_NAME = "book_lines.jsonl"
 SETTLEMENTS_NAME = "settlements.jsonl"
+COMPARISONS_NAME = "book_comparisons.jsonl"
 MANIFEST_NAME = "manifest.json"
-_LOG_NAMES = (PREDICTIONS_NAME, BOOK_LINES_NAME, SETTLEMENTS_NAME)
+_LOG_NAMES = (PREDICTIONS_NAME, BOOK_LINES_NAME, SETTLEMENTS_NAME, COMPARISONS_NAME)
 
 
 class LedgerRefused(RuntimeError):
@@ -152,6 +153,23 @@ def append_book_lines(lines: list[dict], *, path: Path | None = None) -> dict:
         ),
         path=path,
     )
+
+
+def append_book_comparisons(lines: list[dict], *, path: Path | None = None) -> dict:
+    """Append model-versus-reconstruction rows. The same key is not repeated.
+
+    A publish row is one per match. A scoreline row is one per final score,
+    so a corrected score is a later line. Prediction lines are not edited.
+    """
+
+    def key_fn(row: dict):
+        kind = str(row["kind"])
+        base = (int(row["match_id"]), str(row["forecast_line"]), kind)
+        if kind == "scoreline":
+            return (*base, int(row["home_goals"]), int(row["away_goals"]))
+        return base
+
+    return _append_keyed(COMPARISONS_NAME, lines, key_fn=key_fn, path=path)
 
 
 def append_settlements(lines: list[dict], *, path: Path | None = None) -> dict:

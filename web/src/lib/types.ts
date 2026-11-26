@@ -31,6 +31,12 @@ export type MatchPrediction = {
     p_draw: number;
     p_away: number;
   } | null;
+  book_reconstructed_score?: {
+    home: number;
+    away: number;
+    probability: number;
+    label: string;
+  } | null;
   home_goals: number | null;
   away_goals: number | null;
   result: string | null;

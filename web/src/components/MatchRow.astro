@@ -32,6 +32,15 @@ const secondary = secondaryMarketsLine(match);
         ) : (
           <p class="score missing">No predicted score stored</p>
         )}
+        {match.book_reconstructed_score && (
+          <p class="result-line">
+            Book reconstructed most likely score {match.book_reconstructed_score.home}-{match.book_reconstructed_score.away}
+            <span class="nums"> ({pctLabel(match.book_reconstructed_score.probability)})</span>
+          </p>
+        )}
+        {match.book_reconstructed_score?.label && (
+          <p class="xg">{match.book_reconstructed_score.label}</p>
+        )}
         <p class="result-line">
           Most likely result {grade.resultName}
           <span class="nums"> ({grade.resultPct})</span>

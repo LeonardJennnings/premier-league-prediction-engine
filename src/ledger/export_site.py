@@ -13,6 +13,8 @@ import random
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.eval.book_grid import BOOK_SCORE_TABLE_LABEL
+
 UPCOMING_NAME = "ledger-upcoming.json"
 SETTLED_NAME = "ledger-settled.json"
 SCORECARD_NAME = "ledger-scorecard.json"
@@ -78,9 +80,11 @@ def build_site_files(
     book_lines: list[dict],
     *,
     now_utc: datetime,
+    comparisons: list[dict] | None = None,
 ) -> dict[str, dict]:
     """Return the three site documents. Bytes are a pure function of these inputs."""
     now = _as_utc(now_utc)
+    by_match = _publish_comparisons(comparisons)
     blends = {
         int(row["match_id"]): row
         for row in predictions
@@ -104,6 +108,9 @@ def build_site_files(
         if status in {"postponed", "cancelled"} or status == "settled" or kickoff <= now:
             listed_rows.append(card)
         else:
+            score = _reconstructed_score(by_match.get(int(prediction["match_id"])))
+            if score is not None:
+                card["book_reconstructed_score"] = score
             upcoming_rows.append(card)
     return {
         UPCOMING_NAME: {
@@ -117,7 +124,7 @@ def build_site_files(
             ),
             "matchdays": _by_matchday(listed_rows),
         },
-        SCORECARD_NAME: _scorecard(listed_rows),
+        SCORECARD_NAME: _scorecard(listed_rows, comparisons),
     }
 
 
@@ -183,7 +190,7 @@ def _blend_view(prediction: dict) -> dict:
     }
 
 
-def _scorecard(listed: list[dict]) -> dict:
+def _scorecard(listed: list[dict], comparisons: list[dict] | None) -> dict:
     counts = {"settled": 0, "pending": 0, "postponed": 0, "void": 0}
     by_matchday: dict = {}
     for row in listed:
@@ -201,8 +208,74 @@ def _scorecard(listed: list[dict]) -> dict:
         "matchdays": [by_matchday[key] for key in sorted(by_matchday, key=_matchday_key)],
         "home_draw_away": _result_average(settled),
         "book_comparison": _book_comparison(settled),
+        "book_reconstruction": _reconstruction_summary(settled, comparisons),
         "exact_score": _exact_score(settled),
         "goal_error": _goal_error(settled),
+    }
+
+
+def _publish_comparisons(comparisons: list[dict] | None) -> dict[int, dict]:
+    found: dict[int, dict] = {}
+    for row in comparisons or []:
+        if row.get("kind") != "publish" or str(row.get("forecast_line") or "model") != "model":
+            continue
+        found[int(row["match_id"])] = row
+    return found
+
+
+def _reconstructed_score(row: dict | None) -> dict | None:
+    """The book's most likely score, only when a price was reconstructed."""
+    if not row or row.get("missing_reason"):
+        return None
+    score = row.get("book_most_likely_score")
+    if not isinstance(score, dict):
+        return None
+    if score.get("home") is None or score.get("away") is None or score.get("probability") is None:
+        return None
+    return {
+        "home": int(score["home"]),
+        "away": int(score["away"]),
+        "probability": float(score["probability"]),
+        "label": str(row.get("label") or BOOK_SCORE_TABLE_LABEL),
+    }
+
+
+def _reconstruction_summary(settled: list[dict], comparisons: list[dict] | None) -> dict:
+    """Mean scoreline gap on settled matches that have both log losses.
+
+    A missing price stays out. It is not entered as a gap of zero.
+    """
+    scored = {}
+    for row in comparisons or []:
+        if row.get("kind") != "scoreline" or str(row.get("forecast_line") or "model") != "model":
+            continue
+        if row.get("home_goals") is None or row.get("away_goals") is None:
+            continue
+        scored[(int(row["match_id"]), int(row["home_goals"]), int(row["away_goals"]))] = row
+    gaps = []
+    model_losses = []
+    book_losses = []
+    model_hits = 0
+    book_hits = 0
+    for match in settled:
+        row = scored.get((int(match["match_id"]), int(match["home_goals"]), int(match["away_goals"])))
+        if row is None or row.get("scoreline_log_loss_gap") is None:
+            continue
+        gaps.append(float(row["scoreline_log_loss_gap"]))
+        model_losses.append(float(row["model_scoreline_log_loss"]))
+        book_losses.append(float(row["book_scoreline_log_loss"]))
+        if row.get("model_most_likely_hit") is True:
+            model_hits += 1
+        if row.get("book_most_likely_hit") is True:
+            book_hits += 1
+    return {
+        "label": BOOK_SCORE_TABLE_LABEL,
+        "match_count": len(gaps),
+        "mean_gap": _mean(gaps),
+        "model_log_loss": _mean(model_losses),
+        "reconstruction_log_loss": _mean(book_losses),
+        "model_most_likely_hits": model_hits,
+        "reconstruction_most_likely_hits": book_hits,
     }
 
 
