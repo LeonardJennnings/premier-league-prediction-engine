@@ -226,6 +226,22 @@ The closing book is the competitor on the result markets. A smaller log loss tha
 
 There is no free correct-score price. When the de-vigged home, draw, away and over/under 2.5 prices are all present, the walk-forward also scores our reconstruction of the book's score table from its prices, not the bookmaker's correct-score odds. Two goal rates are chosen so a Poisson table, with the low-score correction left at zero, matches those four prices. Closing prices and opening prices are rebuilt separately, and each row is kept only when it covers the same matches as the other scoreline rows. The run stops if the rebuilt home/draw/away log loss, or the rebuilt over/under 2.5 log loss, is more than 0.005 away from the raw prices. That check is in `results/walkforward_book_grid_check.csv`.
 
+### Saved gap split (rates and shape)
+
+```bash
+python -m src.evaluate --mode gap_split
+```
+
+This command does not fit a model and does not change a published probability. It reads `results/walkforward_match_scores.csv` and splits the Dixon-Coles minus closing-reconstruction scoreline gap into two pieces on the same matches. The rate piece is the part that disappears when the reconstruction's home and away rates are used with the model's low-score correction. The shape piece is the part that remains. The original gap is also grouped by season, and by the absolute miss in the total rate (home plus away) and in the rate split (home minus away).
+
+The cuts are under 0.15, from 0.15 to 0.40, and over 0.40. A miss of exactly 0.15 or 0.40 sits in the middle group. Those cuts are fixed. They are not moved after the grouped losses are seen.
+
+Every quoted gap uses the same round bootstrap as the walk-forward paired table: 4000 resamples, seed `20261124`. The note prints the mean, the 95% range, the match count, and the round count. Groups that were scored on different matches are separate tables in a fixed order. They are not ranked. The unsplit gap has to reprint the committed Dixon-Coles minus closing-reconstruction row. A mismatch means the join is wrong.
+
+The home-rate block is the model home rate minus the reconstruction home rate, by season. It is not a scoreline gap and it is not ranked against the scoreline tables.
+
+Artefacts: `results/GAP_SPLIT.md`, `results/gap_split.csv`.
+
 ## Leakage policy
 
 Matches in a test fold are excluded from fitting for that fold. Features must not use information that would be unavailable before kickoff. Large apparent edges versus closing odds are treated as defects until proven otherwise.

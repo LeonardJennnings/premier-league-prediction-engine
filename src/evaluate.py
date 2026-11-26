@@ -224,6 +224,7 @@ if __name__ == "__main__":
             "thin_prior",
             "grid_calibration",
             "market_blend",
+            "gap_split",
         ),
         default="season",
         help=(
@@ -231,7 +232,8 @@ if __name__ == "__main__":
             "xi_tune = nested ξ selection on older folds + holdout report; "
             "thin_prior = one strength for thin clubs, chosen on earlier seasons; "
             "grid_calibration = one scale and one steady low-score correction; "
-            "market_blend = one weight on the price available before kickoff"
+            "market_blend = one weight on the price available before kickoff; "
+            "gap_split = split the saved scoreline gap into rates and shape, no refit"
         ),
     )
     args = parser.parse_args()
@@ -269,6 +271,14 @@ if __name__ == "__main__":
             result.dropped,
             result.reason,
         )
+        for label, path in paths.items():
+            logger.info("Wrote %s -> %s", label, path)
+    elif args.mode == "gap_split":
+        from src.eval.gap_split import run_gap_split, write_gap_split_artefacts
+
+        result = run_gap_split()
+        paths = write_gap_split_artefacts(result)
+        logger.info("Gap sits in the %s", result.location)
         for label, path in paths.items():
             logger.info("Wrote %s -> %s", label, path)
     elif args.mode == "market_blend":
