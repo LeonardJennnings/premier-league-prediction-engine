@@ -1,0 +1,20 @@
+family,group,mean_diff,ci_low,ci_high,n_matches,n_rounds,n_bootstrap,seed,note
+same_matches,model minus closing reconstruction,0.0995,0.0608,0.1419,1430,143,4000,20261124,A positive number means the model has the higher scoreline log loss.
+same_matches,rate piece,0.0986,0.0602,0.1409,1430,143,4000,20261124,A positive number means the model has the higher scoreline log loss.
+same_matches,shape piece,0.0009,-0.0019,0.0036,1430,143,4000,20261124,A positive number means the model has the higher scoreline log loss.
+season,2223,0.0755,0.0178,0.1351,180,18,4000,20261124,A positive number means the model has the higher scoreline log loss.
+season,2324,0.1338,0.0628,0.2228,380,38,4000,20261124,A positive number means the model has the higher scoreline log loss.
+season,2425,0.0724,0.0221,0.1465,380,38,4000,20261124,A positive number means the model has the higher scoreline log loss.
+season,2526,0.0691,0.0166,0.15,380,38,4000,20261124,A positive number means the model has the higher scoreline log loss.
+season,2627,0.2185,-0.0176,0.511,110,11,4000,20261124,A positive number means the model has the higher scoreline log loss.
+total_rate,under 0.15,0.025,0.005,0.0453,411,140,4000,20261124,A positive number means the model has the higher scoreline log loss.
+total_rate,from 0.15 to 0.40,0.0474,0.0252,0.0699,621,142,4000,20261124,A positive number means the model has the higher scoreline log loss.
+total_rate,over 0.40,0.2577,0.1341,0.4045,398,132,4000,20261124,A positive number means the model has the higher scoreline log loss.
+rate_split,under 0.15,0.0227,0.0013,0.0434,441,137,4000,20261124,A positive number means the model has the higher scoreline log loss.
+rate_split,from 0.15 to 0.40,0.0646,0.0285,0.119,547,143,4000,20261124,A positive number means the model has the higher scoreline log loss.
+rate_split,over 0.40,0.2192,0.1116,0.344,442,140,4000,20261124,A positive number means the model has the higher scoreline log loss.
+home_rate,2223,0.0451,-0.0178,0.0995,180,18,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
+home_rate,2324,0.0111,-0.0306,0.0517,380,38,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
+home_rate,2425,-0.0591,-0.0879,-0.0316,380,38,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
+home_rate,2526,-0.0358,-0.0613,-0.0103,380,38,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
+home_rate,2627,-0.121,-0.2047,-0.0419,110,11,4000,20261124,A positive number means the model home rate is higher than the reconstruction home rate.
